@@ -1,4 +1,7 @@
 plugins {
+    kotlin("plugin.serialization") version "2.1.21"
+    id("com.google.gms.google-services")
+    id("com.google.devtools.ksp")
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -6,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.android_launcher"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.android_launcher"
@@ -56,4 +59,29 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    //Navigation 3
+    implementation(libs.androidx.navigation.compose)
+
+    //Koin
+    implementation(libs.koin.androidx.compose)
+
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+
+    //Google cloud credentials
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
+    //Datastore
+    implementation(libs.androidx.datastore.preferences)
+
+    //Room Database
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    annotationProcessor(libs.androidx.room.compiler)
 }
