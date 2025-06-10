@@ -6,6 +6,7 @@ import com.example.android_launcher.data.local.AppsDatabase
 import com.example.android_launcher.data.repository.AppsRepositoryImpl
 import com.example.android_launcher.domain.repository.AppsRepository
 import com.example.android_launcher.presentation.screens.home.SharedViewModel
+import com.example.android_launcher.presentation.screens.home.apps.BlockedAppViewModel
 import com.example.android_launcher.presentation.screens.home.calendar.CalendarViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
@@ -24,6 +25,7 @@ val appModule = module {
     single <AppsRepository> { AppsRepositoryImpl(get()) }
 
     viewModelOf(::CalendarViewModel)
+    viewModelOf(::BlockedAppViewModel)
     viewModel { SharedViewModel(get(),get()) }
 
 }
