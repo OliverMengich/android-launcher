@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.material3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -66,6 +67,8 @@ dependencies {
     //Koin
     implementation(libs.koin.androidx.compose)
 
+    //Splash screen
+    implementation(libs.androidx.core.splashscreen)
 
     // Firebase
     implementation(platform(libs.firebase.bom))
@@ -84,4 +87,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     annotationProcessor(libs.androidx.room.compiler)
+
+    //Coil
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 }
