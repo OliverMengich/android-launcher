@@ -15,19 +15,25 @@ interface AppsDao {
     @Query("SELECT * FROM apps WHERE isPinned=1;")
     fun getPinnedApps(): List<App>
 
-    @Query("UPDATE apps SET isPinned=1 WHERE id=:appId;")
-    fun pinApp(appId: Int,)
+    @Query("SELECT * FROM apps WHERE isHidden=1;")
+    fun getHiddenApps(): List<App>
 
-    @Query("UPDATE apps SET isBlocked=1 WHERE id=:appId;")
-    fun blockApp(appId: Int,)
+    @Query("SELECT * FROM apps WHERE isBlocked=1;")
+    fun getBlockedApps(): List<App>
 
-    @Query("UPDATE apps SET isHidden=1 WHERE id=:appId;")
-    fun hideApp(appId: Int)
+    @Query("UPDATE apps SET isPinned=:pinned WHERE packageName =:packageName;")
+    fun pinApp(packageName: String,pinned: Int)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Query("UPDATE apps SET isBlocked=:blocked, blockReleaseDate=:blockReleaseDate WHERE packageName =:packageName;")
+    fun blockUnblockApp(packageName: String, blocked: Int,blockReleaseDate: String?)
+
+    @Query("UPDATE apps SET isHidden=:hidden WHERE packageName=:packageName;")
+    fun hideUnhideApp(packageName: String,hidden: Int)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertApps(apps: List<App>)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertApp(app: App)
 
     @Query("DELETE FROM apps WHERE packageName=:packageName")
