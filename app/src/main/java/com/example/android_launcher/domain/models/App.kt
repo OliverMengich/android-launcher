@@ -1,16 +1,17 @@
 package com.example.android_launcher.domain.models
 
-import android.graphics.drawable.Drawable
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 
-@Entity(tableName = "apps")
+@Entity(tableName = "apps", indices = [Index(value = ["packageName"], unique = true)])
 data class App(
-    @PrimaryKey val id: Int,
     val name: String,
-    val packageName: String,
+    @PrimaryKey val packageName: String,
     val isBlocked: Boolean?=false,
     val isPinned: Boolean?=false,
-    val isHidden: Boolean?=false
+    val blockReleaseDate: String?= "",
+    val isHidden: Boolean?=false,
+    val category: String?=null,
 )
