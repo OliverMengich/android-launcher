@@ -1,89 +1,80 @@
 package com.example.android_launcher.presentation.screens.home
 
-import android.util.Log
-import androidx.compose.foundation.isSystemInDarkTheme
+import android.os.Build
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHost
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.android_launcher.R
-import com.example.android_launcher.presentation.screens.home.apps.AppsPage
-import com.example.android_launcher.presentation.screens.home.calendar.CalendarPage
+import androidx.navigation.toRoute
+import com.example.android_launcher.presentation.screens.home.home.apps.AppsPage
+import com.example.android_launcher.presentation.screens.home.home.apps.BlockedAppPage
+import com.example.android_launcher.presentation.screens.home.home.apps.BlockingAppPage
 import com.example.android_launcher.presentation.screens.home.home.HomePage
+import com.example.android_launcher.presentation.screens.home.home.LauncherHome
+import com.example.android_launcher.presentation.screens.home.home.calendar.NewEventPage
+import com.example.android_launcher.presentation.screens.home.settings.SettingsPage
 import kotlinx.serialization.Serializable
+import kotlin.toString
 
 @Serializable sealed interface Screen
-@Serializable data object HomeScreen: Screen
-@Serializable data object AppsScreen: Screen
-@Serializable data object CalendarScreen: Screen
+@Serializable data object LauncherHomeScreen: Screen
+@Serializable data class BlockedAppScreen(val name: String,val blockReleaseDate: String?= "", val packageName: String): Screen
+@Serializable data class BlockingAppScreen(val packageName: String): Screen
+@Serializable data object NewEventScreen: Screen
+@Serializable data object SettingsScreen: Screen
 
+@RequiresApi(Build.VERSION_CODES.Q)
 @Composable
-fun HomeNavigator(){
+fun HomeNavigator(padding: PaddingValues, changeTheme: (String)->Unit){
     val navController = rememberNavController()
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    label = { Text("Apps") },
-                    onClick = {
-                        navController.navigate(route = AppsScreen)
-                    },
-                    icon = {
-                        Icon(modifier = Modifier.size(20.dp), painter = painterResource(id=R.drawable.ic_dashboard), contentDescription = null)
-                    },
-                    selected = false,
-                )
-                NavigationBarItem(
-                    label = { Text("Home") },
-                    onClick = {
-                        navController.navigate(route = HomeScreen)
-                    },
-                    icon = {
-                        Icon(Icons.Default.Home, contentDescription = null,modifier = Modifier.size(20.dp), tint = if(isSystemInDarkTheme()) Color.White else Color.Black)
-                    },
-                    selected = true,
-                )
-                NavigationBarItem(
-                    label = { Text("Calendar") },
-                    onClick = {
-                        navController.navigate(route = CalendarScreen)
-                    },
-                    icon = {
-                        Icon(Icons.Default.DateRange, contentDescription = null,modifier = Modifier.size(20.dp), tint = if(isSystemInDarkTheme()) Color.White else Color.Black)
-                    },
-                    selected = false,
-                )
-            }
-        }) { innerP->
-        NavHost(navController=navController, modifier = Modifier.padding(innerP).padding(top=30.dp), startDestination= HomeScreen, ) {
-            composable<HomeScreen> {
-                HomePage()
-            }
-            composable<AppsScreen> {
-                AppsPage()
-            }
-            composable<CalendarScreen> {
-                CalendarPage()
-            }
+    NavHost(navController=navController, modifier = Modifier.fillMaxSize().padding(top=30.dp), startDestination= LauncherHomeScreen, ) {
+        composable<LauncherHomeScreen> {
+            LauncherHome(
+                navigateToSettingsPage = {
+                    navController.navigate(route=SettingsScreen)
+                },
+                navigateToBlockedApp = {ap->
+                    navController.navigate(route = BlockedAppScreen(name = ap.name, packageName = ap.packageName, blockReleaseDate = ap.blockReleaseDate))
+                },
+                navigateToBlockingAppPage = {ap->
+                    navController.navigate(route = BlockingAppScreen(packageName = ap.packageName))
+                },
+                navigateToNewEvent={
+                    navController.navigate(route= NewEventScreen)
+                }
+            )
+        }
+        composable<SettingsScreen> {
+            SettingsPage(
+                modifier = Modifier.padding(paddingValues=padding),
+                changeTheme=changeTheme
+            )
+        }
+        composable<NewEventScreen> {
+            NewEventPage(goBack = {navController.popBackStack()})
+        }
+        composable<BlockedAppScreen> { backState->
+            val info = backState.toRoute<BlockedAppScreen>()
+            BlockedAppPage(name = info.name,modifier = Modifier.padding(padding), packageName = info.packageName, blockReleaseDate = info.blockReleaseDate)
+        }
+        composable<BlockingAppScreen> { backState->
+            val info = backState.toRoute<BlockingAppScreen>()
+            BlockingAppPage(
+                packageName = info.packageName,
+                modifier = Modifier.padding(padding),
+                navigateBack = {
+                    navController.popBackStack()
+                }
+            )
         }
     }
+
 }
