@@ -1,10 +1,15 @@
-package com.example.android_launcher.presentation.screens.home.apps
+package com.example.android_launcher.presentation.screens.home.home.apps
 
+import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -14,12 +19,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.runtime.collectAsState
@@ -34,33 +48,66 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import com.example.android_launcher.OPEN_KEYBOARD
+import com.example.android_launcher.dataStore
 import com.example.android_launcher.domain.models.App
 import com.example.android_launcher.presentation.components.AppItem
 import com.example.android_launcher.presentation.screens.home.SharedViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.util.Calendar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppPage:(App)->Unit, navigateToBlockedApp:(App)->Unit){
+fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppPage:(App)->Unit,isFocused: Boolean, navigateToBlockedApp:(App)->Unit){
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val apps = viewModel.apps.collectAsState().value
     var textField by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val filteredApps = apps.filter { ap->
         ap.name.contains(textField, ignoreCase = true)
-    }
+    }.sortedBy { it.name }
+    val currentTime = Calendar.getInstance()
+    val timePickerState = rememberTimePickerState(
+        initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
+        initialMinute = currentTime.get(Calendar.MINUTE),
+    )
+    var showTimeDialog by remember{mutableStateOf(false)}
+    var category by remember{mutableStateOf<String?>(null)}
+    var startTime by remember{mutableStateOf<LocalDate?>(null)}
+    var endTime by remember{mutableStateOf<LocalDate?>(null)}
+
+
 
     val context = LocalContext.current
-    LaunchedEffect(Unit) {
-        delay(100)
-        focusRequester.requestFocus()
-    }
 
+    LaunchedEffect(key1=isFocused) {
+        val sharedRef = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
+        val isOpenKeyboard = sharedRef.getBoolean("IS_OPEN_KEYBOARD",false)
+        if (isFocused && isOpenKeyboard) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }else{
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }
+    }
     LaunchedEffect(key1 = viewModel.navigateToBlockedAppPage, key2 = viewModel.navigateToBlockingAppPage) {
         viewModel.navigateToBlockedAppPage.collectLatest { app->
             if(app!=null){
@@ -74,11 +121,12 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
         }
     }
 
-    Column(modifier = Modifier.padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
+    Column(modifier = Modifier.fillMaxSize().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
             modifier = Modifier.fillMaxWidth(.9f).background(Color.Transparent, shape = RoundedCornerShape(40.dp)),
-            contentAlignment = Alignment.CenterStart,
+//            contentAlignment = Alignment.CenterStart,
         ) {
+            Text("My Apps", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
             OutlinedTextField(
                 value = textField,
                 onValueChange = { textField = it },
@@ -91,7 +139,9 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
                     unfocusedBorderColor = Color.Gray
                 ),
                 keyboardOptions = KeyboardOptions(
-                    autoCorrect = false,
+                    capitalization = KeyboardCapitalization.Unspecified,
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Unspecified,
                     imeAction = ImeAction.Go
                 ),
                 keyboardActions = KeyboardActions(
@@ -104,20 +154,21 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester).padding(vertical= 5.dp),
                 shape = RoundedCornerShape(40.dp),
                 trailingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = null)
+                    Icon(imageVector = Icons.Default.Clear,modifier= Modifier.clickable{textField=""}, contentDescription = null)
                 },
             )
         }
-        LazyColumn(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            items(filteredApps) { ap->
+        LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = if(textField=="") 0.dp else 30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            items(items=filteredApps) { ap->
                 AppItem(
                     onClick = {
                         viewModel.launchApp(app=ap)
+                        textField = ""
                     },
                     ap = ap,
                     onHideApp = {
                         scope.launch {
-                            viewModel.hideUnhideAppFc(ap,0)
+                            viewModel.hideUnhideAppFc(app=ap, hidden=1)
                         }
                     },
                     onUninstallApp = {
@@ -127,13 +178,10 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
                     },
                     onBlockApp = {
                         navigateToBlockingAppPage(ap)
-//                        scope.launch {
-//                            viewModel.blockUnblockAppFc(ap, if(ap.isBlocked == true) 0 else 1)
-//                        }
                     },
                     onPinApp = {
                         scope.launch {
-                            viewModel.pinUnpinApp(ap, if(ap.isPinned == true) 0 else 1)
+                            viewModel.pinUnpinApp(app=ap, pinned=if(ap.isPinned == true) 0 else 1)
                         }
                     },
                 )
