@@ -37,6 +37,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,12 +78,22 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val apps = viewModel.apps.collectAsState().value
-    var textField by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val filteredApps = apps.filter { ap->
-        ap.name.contains(textField, ignoreCase = true)
-    }.sortedBy { it.name }
+    val apps by viewModel.apps.collectAsState()
+    var textField by remember { mutableStateOf("") }
+
+    val filteredApps by remember(apps, textField) {
+        derivedStateOf {
+            val query = textField.lowercase()
+            apps
+                .filter { it.name.lowercase().contains(other=query) }
+                .sortedWith(
+                comparator = compareByDescending<App> { it.name.lowercase().startsWith(query) }
+                    .thenByDescending { it.name.lowercase().contains(other=query) }
+                    .thenBy { it.name.lowercase() }
+            )
+        }
+    }
     val currentTime = Calendar.getInstance()
     val timePickerState = rememberTimePickerState(
         initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
