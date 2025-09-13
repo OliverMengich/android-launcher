@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.android_launcher.domain.models.Event
+import com.example.android_launcher.utils.formatTimeFromMillis
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,7 +34,7 @@ fun CalendarItem(title: String,events: List<Event>){
         }else{
             LazyColumn {
                 items(items=events){ev->
-                    val tm = formatTimeFromMillis(ev.startDate)
+                    val tm = formatTimeFromMillis(ev.startTime as Long)
                     Row(verticalAlignment = Alignment.CenterVertically,modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
                         Text(" - $tm", modifier = Modifier.padding(end = 10.dp))
                         Text(text=ev.title)
@@ -42,8 +43,4 @@ fun CalendarItem(title: String,events: List<Event>){
             }
         }
     }
-}
-fun formatTimeFromMillis(timeInMillis: Long): String {
-    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-    return formatter.format(Date(timeInMillis))
 }
