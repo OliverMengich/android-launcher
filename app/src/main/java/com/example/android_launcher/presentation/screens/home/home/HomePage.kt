@@ -161,7 +161,7 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
         val nowCalendar = Calendar.getInstance()
         hourEvents = todayEvents.filter { ev ->
             val eventCalendar = Calendar.getInstance().apply {
-                timeInMillis = ev.startDate
+                timeInMillis = ev.startTime as Long
             }
             eventCalendar.get(Calendar.YEAR) == nowCalendar.get(Calendar.YEAR) &&
                     eventCalendar.get(Calendar.DAY_OF_YEAR) == nowCalendar.get(Calendar.DAY_OF_YEAR) &&
