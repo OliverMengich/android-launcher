@@ -2,9 +2,11 @@ package com.example.android_launcher.utils
 
 import android.content.Context
 import android.content.pm.PackageManager
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Date
 import java.util.Locale
 
 fun formatTime(milliSecs: Long?): String {
@@ -63,4 +65,8 @@ fun isAppInstalled(context: Context, packageName: String): Boolean {
     } catch (e: PackageManager.NameNotFoundException) {
         false
     }
+}
+fun formatTimeFromMillis(timeInMillis: Long): String {
+    val formatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+    return formatter.format(Date(timeInMillis))
 }
