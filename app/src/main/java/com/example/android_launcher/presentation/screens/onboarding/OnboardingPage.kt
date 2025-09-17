@@ -106,7 +106,7 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
                                     pagerState.animateScrollToPage(page = pagerState.currentPage+1)
                                 }
                             }else {
-                                Toast.makeText(context,"Please grant overlay permission to proceed.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context,"Please grant usage permission to proceed.", Toast.LENGTH_LONG).show()
                             }
                         },
                         requestUsagePermission = {
