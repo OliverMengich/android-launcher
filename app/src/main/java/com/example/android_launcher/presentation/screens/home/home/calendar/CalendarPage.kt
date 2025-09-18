@@ -93,8 +93,9 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
     }
 
 //    val hourFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-    var showBottomSheet by remember {
-        mutableStateOf(false)
+
+    var selectedEvent by remember{
+        mutableStateOf<Event?>(null)
     }
     val weeks = viewModel.dates.collectAsState().value
     val hourFormat = remember { SimpleDateFormat("h:00 a", Locale.getDefault()) }
@@ -105,12 +106,12 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
         eventsList = todayEvents
             .groupBy { ev ->
                 LocalDateTime.ofInstant(
-                    Instant.ofEpochMilli(ev.startDate),
+                    Instant.ofEpochMilli(ev.startTime as Long),
                     ZoneId.systemDefault()
                 ).hour
             }
             .map { (hourId, eventsInHour) ->
-                val firstEventMillis = eventsInHour.first().startDate
+                val firstEventMillis = eventsInHour.first().startTime as Long
                 val hourValue = hourFormat.format(Date(firstEventMillis))
                     .lowercase(Locale.getDefault())
                 EventsOrder(
@@ -120,11 +121,9 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
                 )
             }
             .sortedBy { it.id }
-//        listState.scrollToItem(1)
     }
     val pagerState = rememberPagerState(pageCount = { weeks.size })
     val activeDateFormatter = DateTimeFormatter.ofPattern("MMMM dd, yyyy")
-
     Column(modifier = Modifier.fillMaxSize())  {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 20.dp, bottom = 0.dp)) {
             Row(
@@ -192,7 +191,7 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(e.events){item->
-                                    Column(Modifier.background(Color.Red, shape = RoundedCornerShape(10.dp)).padding(horizontal = 5.dp, vertical = 5.dp).clickable{showBottomSheet = !showBottomSheet}){
+                                    Column(Modifier.background(Color.Red, shape = RoundedCornerShape(10.dp)).padding(horizontal = 5.dp, vertical = 5.dp).clickable{selectedEvent=item}){
                                         Text( item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text("09:45am-10:00am")
                                         Text("Skype")
@@ -205,8 +204,8 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
             }
         }
 
-        if (showBottomSheet) {
-            ModalBottomSheet(onDismissRequest = { showBottomSheet = !showBottomSheet },Modifier.heightIn(min=400.dp),sheetState = rememberModalBottomSheetState(),) {
+        if (selectedEvent !=null) {
+            ModalBottomSheet(onDismissRequest = { selectedEvent=null },Modifier.heightIn(min=400.dp),sheetState = rememberModalBottomSheetState(),) {
                 Text("show bottom sheet.")
             }
         }
