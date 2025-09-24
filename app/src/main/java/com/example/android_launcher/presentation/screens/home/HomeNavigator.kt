@@ -15,7 +15,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.android_launcher.presentation.screens.home.home.apps.AppsPage
-import com.example.android_launcher.presentation.screens.home.home.apps.BlockedAppPage
 import com.example.android_launcher.presentation.screens.home.home.apps.BlockingAppPage
 import com.example.android_launcher.presentation.screens.home.home.HomePage
 import com.example.android_launcher.presentation.screens.home.home.LauncherHome
@@ -60,10 +59,6 @@ fun HomeNavigator(padding: PaddingValues, changeTheme: (String)->Unit){
         }
         composable<NewEventScreen> {
             NewEventPage(goBack = {navController.popBackStack()})
-        }
-        composable<BlockedAppScreen> { backState->
-            val info = backState.toRoute<BlockedAppScreen>()
-            BlockedAppPage(name = info.name,modifier = Modifier.padding(padding), packageName = info.packageName, blockReleaseDate = info.blockReleaseDate)
         }
         composable<BlockingAppScreen> { backState->
             val info = backState.toRoute<BlockingAppScreen>()
