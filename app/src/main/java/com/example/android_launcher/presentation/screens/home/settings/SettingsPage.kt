@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -70,6 +71,10 @@ import com.example.android_launcher.R
 import com.example.android_launcher.dataStore
 import com.example.android_launcher.presentation.components.AppItem
 import com.example.android_launcher.presentation.screens.home.SharedViewModel
+import com.example.android_launcher.ui.theme.checkedThumbColor
+import com.example.android_launcher.ui.theme.checkedTrackColor
+import com.example.android_launcher.ui.theme.uncheckedThumbColor
+import com.example.android_launcher.ui.theme.uncheckedTrackColor
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.launch
@@ -364,19 +369,34 @@ fun AccordionItem(title: String,children: @Composable () ->Unit){
         }
     }
 }
+
 @Composable
-fun SwitchItem(title:String,checked: Boolean,handleSwitchToggled:(Boolean)->Unit){
-    Column(Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 20.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween){
+fun SwitchItem(modifier: Modifier=Modifier,title:String,checked: Boolean,handleSwitchToggled:(Boolean)->Unit={}){
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ){
             Text(text=title,fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Switch(
                 checked = checked,
                 colors = SwitchDefaults.colors(
-                    checkedIconColor = MaterialTheme.colorScheme.onBackground
+                    checkedThumbColor = checkedThumbColor,
+                    uncheckedTrackColor = uncheckedTrackColor,
+                    checkedTrackColor = checkedTrackColor,
+                    uncheckedThumbColor = uncheckedThumbColor,
+                    uncheckedBorderColor = uncheckedThumbColor,
+                    checkedBorderColor = checkedThumbColor
                 ),
-                onCheckedChange = handleSwitchToggled
+                onCheckedChange = handleSwitchToggled,
+                thumbContent = {
+                    Icon(
+                        imageVector = if(checked)Icons.Filled.Check else Icons.Filled.Close,
+                        tint = if(checked) Color(color=0xFF03fa6e) else Color.White,
+                        contentDescription = ""
+                    )
+                }
             )
         }
     }
