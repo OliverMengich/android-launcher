@@ -96,7 +96,7 @@ fun SettingsPage(modifier: Modifier=Modifier, sharedViewModel: SharedViewModel =
 
     val hiddenApps = viewModel.hiddenApps.collectAsState().value
     val user = Firebase.auth.currentUser
-    Column(modifier=modifier.fillMaxSize().verticalScroll(verticalScroll)) {
+    Column(modifier=modifier.fillMaxSize()) {
         Column(Modifier.fillMaxWidth().padding(top=30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if(user?.photoUrl!=null){
                 AsyncImage(
@@ -252,61 +252,92 @@ fun SettingsPage(modifier: Modifier=Modifier, sharedViewModel: SharedViewModel =
                 )
             }
         }
+        var showChildren by remember { mutableStateOf(false) }
+
         Column() {
             HorizontalDivider()
             Text(text="Settings",Modifier.padding(horizontal = 20.dp), fontWeight = FontWeight.Bold, fontSize = 25.sp)
-            Column(Modifier.fillMaxWidth()) {
-                AccordionItem("Hidden Apps") {
-                    LazyColumn(Modifier.padding(horizontal = 10.dp)) {
-                        items(hiddenApps){ ap->
-                            AppItem(
-                                onClick = {
-                                    sharedViewModel.launchApp(app=ap)
-                                },
-                                ap = ap,
-                                onHideApp = {
-                                    scope.launch {
-                                        sharedViewModel.hideUnhideAppFc(ap,0)
-                                    }
-                                },
-                                onUninstallApp = {
-                                    val intent = Intent(Intent.ACTION_DELETE)
-                                    intent.data = "package:${ap.packageName}".toUri()
-                                    context.startActivity(intent)
-                                },
-                                onBlockApp = {
-                                    Toast.makeText(context,"You cannot block an hidden app, unpin first",Toast.LENGTH_SHORT).show()
-                                },
-                                onPinApp = {
-                                    Toast.makeText(context,"You cannot pin an hidden app, unpin first",Toast.LENGTH_SHORT).show()
-                                },
-                            )
-                        }
-                    }
-                }
-                AccordionItem("Precision Mode") {
-                    Column(Modifier.padding(horizontal = 20.dp),) {
-                        TextButton(
-                            onClick={
-                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                context.startActivity(intent)
-                            },
-                            content={
-                                Text("Enable precision mode")
-                            }
+
+            LazyColumn {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showChildren = !showChildren }
+                            .padding(start = 20.dp, end = 18.dp, top = 9.dp, bottom = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            text = "Hidden Apps",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_down),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clickable { showChildren = !showChildren }
+                                .rotate(if (showChildren) 0f else -90f),
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
-                Column(Modifier.fillMaxWidth()
-                    .clickable {
-                        val intent = Intent(Settings.ACTION_SETTINGS).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                item {
+                    AnimatedVisibility(visible = showChildren) {
+                        Column(Modifier.padding(horizontal = 10.dp)) {
+                            hiddenApps.forEach { ap ->
+                                AppItem(
+                                    onClick = { sharedViewModel.launchApp(ap) },
+                                    ap = ap,
+                                    onHideApp = {
+                                        scope.launch {
+                                            sharedViewModel.hideUnhideAppFc(ap, 0)
+                                        }
+                                    },
+                                    onUninstallApp = {
+                                        val intent = Intent(Intent.ACTION_DELETE)
+                                        intent.data = "package:${ap.packageName}".toUri()
+                                        context.startActivity(intent)
+                                    },
+                                    onBlockApp = {
+                                        scope.launch {
+                                            sharedViewModel.blockUnblockAppFc(ap,if(ap.isBlocked==true)0 else 1)
+                                        }
+                                    },
+                                    onPinApp = {
+                                        Toast.makeText(context, "You cannot pin a hidden app, unhide first", Toast.LENGTH_SHORT).show()
+                                    },
+                                )
+                            }
                         }
-                        context.startActivity(intent)
-                    }) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween){
-                        Text(modifier= Modifier.padding(vertical = 8.dp),text="Device Settings",fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
+                }
+            }
+            AccordionItem("Precision Mode") {
+                Column(Modifier.padding(horizontal = 20.dp),) {
+                    TextButton(
+                        onClick={
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                        content={
+                            Text("Enable precision mode")
+                        }
+                    )
+                }
+            }
+            Column(Modifier.fillMaxWidth()
+                .clickable {
+                    val intent = Intent(Settings.ACTION_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                }) {
+                Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween){
+                    Text(modifier= Modifier.padding(vertical = 8.dp),text="Device Settings",fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
             }
         }
