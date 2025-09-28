@@ -1,0 +1,27 @@
+name: Android Build & Release
+
+on:
+  push:
+    tags:
+      - 'v1.0.0'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission to gradlew
+        run: chmod +x gradlew
+      - name: Build APK
+        run: ./gradlew assembleRelease
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
