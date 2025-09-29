@@ -17,3 +17,7 @@ val DarkPrimary = Color.Black
 val DarkSecondary = Color(0xFF404040)
 val DarkOnPrimary = Color.Black
 
+val uncheckedThumbColor = Color(0xFF8c8c8c)
+val checkedThumbColor = Color(0xFFFFFFFF)
+val uncheckedTrackColor = Color(0xFFcdcdcd)
+val checkedTrackColor = Color(0xFF03FF72)
