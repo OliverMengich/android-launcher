@@ -5,43 +5,32 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.os.BatteryManager
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import com.example.android_launcher.domain.models.App
-import com.example.android_launcher.domain.models.BatteryInfo
 import com.example.android_launcher.domain.repository.AppsRepository
-import com.example.android_launcher.presentation.screens.home.SharedViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.core.context.GlobalContext
-import javax.inject.Inject
-import kotlin.random.Random
 
 
-class MyBroadCastReceiver: BroadcastReceiver() {
+class PackagesBroadCastReceiver: BroadcastReceiver() {
     @SuppressLint("SuspiciousIndentation")
     override fun onReceive(context: Context?, intent: Intent?) {
         val appsRepository = GlobalContext.get().get<AppsRepository>()
-        print("Received")
         val pm = context?.packageManager
         when(intent?.action){
             Intent.ACTION_PACKAGE_ADDED->{
-                Log.d("new_app","new app installed")
-                Log.d("APP_PACKAGE_CHANGED","Package ADDED: ${intent.data?.encodedSchemeSpecificPart}")
                 val packageName = intent.data?.encodedSchemeSpecificPart ?: return
                 val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
-                Log.d("APP_PACKAGE_CHANGED","Package ADDED: $packageName. REPLACING=$replacing")
-                if (replacing) return // ignore if it's an app update
+                if (replacing) return
                 val pendingResult = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         val appInfo = pm?.getApplicationInfo(packageName,0) ?: return@launch
                         val appLabel = pm.getApplicationLabel(appInfo).toString()
-
                         val appDomains = getDomainsFromApp(appLabel)
                         val category = getCategoryName(appInfo.category)
                         appsRepository.newAppInstalled(
@@ -49,27 +38,24 @@ class MyBroadCastReceiver: BroadcastReceiver() {
                         )
                         appsRepository.refetchAppsFlow.tryEmit(true)
                     }catch (e: Exception){
-                        Log.e("AppInstallEvent","App not found ${e.message}")
+                        Toast.makeText(context,"App not found ${e.message}", Toast.LENGTH_SHORT).show()
                     }finally {
-                        Log.d("AppInstallEvent","Finished install")
                         pendingResult.finish()
                     }
                 }
             }
             Intent.ACTION_PACKAGE_REMOVED->{
                 val packageName = intent.data?.encodedSchemeSpecificPart ?: return
-                Log.d("APP_PACKAGE_CHANGED","Package removed: $packageName")
                 val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
-                if (replacing) return // ignore if it's an app update
+                if (replacing) return
                 val pendingResult = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         appsRepository.removeUninstalled(packageName)
                         appsRepository.refetchAppsFlow.tryEmit(true)
                     }catch (e: Exception){
-                        Log.e("AppInstallEvent","App not found ${e.message}")
+                        Toast.makeText(context,"App not removed ${e.message}", Toast.LENGTH_SHORT).show()
                     }finally {
-                        Log.d("AppInstallEvent","Finished uninstall")
                         pendingResult.finish()
                     }
                 }
@@ -121,8 +107,6 @@ class MyBroadCastReceiver: BroadcastReceiver() {
             "telegram" -> domains.addAll(listOf("t.me"))
             "whatsapp" -> domains.addAll(listOf("wa.me", "web.whatsapp.com"))
         }
-
         return domains.toList()
     }
-
 }
