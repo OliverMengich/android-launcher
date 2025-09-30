@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -49,13 +50,15 @@ data class CalendarState(
 // 2. Main Multi-Date Picker Composable
 @Composable
 fun MultiDatePicker(
+    modifier: Modifier = Modifier,
     selectedDates: Set<LocalDate>,
     onDatesSelected: (Set<LocalDate>) -> Unit,
-    modifier: Modifier = Modifier,
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
     maxSelectableDates: Int = Int.MAX_VALUE,
-    disabledDates: Set<LocalDate> = emptySet()
+    disabledDates: Set<LocalDate> = emptySet(),
+    enableAllDays: Boolean?=false,
+    enableWeekDays: Boolean?=false,
 ) {
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
 
@@ -77,6 +80,8 @@ fun MultiDatePicker(
             // Calendar grid
             CalendarGrid(
                 currentMonth = currentMonth,
+                enableAllDays = enableAllDays,
+                enableWeekDays = enableWeekDays,
                 selectedDates = selectedDates,
                 onDateSelected = { date ->
                     val newSelectedDates = if (selectedDates.contains(date)) {
@@ -93,18 +98,6 @@ fun MultiDatePicker(
                 disabledDates = disabledDates
             )
             Spacer(Modifier.height(16.dp))
-//            // Selected dates chips
-//            if (selectedDates.isNotEmpty()) {
-//                SelectedDatesSection(
-//                    selectedDates = selectedDates,
-//                    onDateRemoved = { dateToRemove ->
-//                        onDatesSelected(selectedDates - dateToRemove)
-//                    },
-//                    onClearAll = {
-//                        onDatesSelected(emptySet())
-//                    }
-//                )
-//            }
         }
     }
 }
@@ -150,6 +143,8 @@ fun CalendarGrid(
     selectedDates: Set<LocalDate>,
     onDateSelected: (LocalDate) -> Unit,
     minDate: LocalDate?,
+    enableAllDays: Boolean?=false,
+    enableWeekDays: Boolean?=false,
     maxDate: LocalDate?,
     disabledDates: Set<LocalDate>
 ) {
@@ -184,6 +179,8 @@ fun CalendarGrid(
         ) {
             items(calendarDays) { calendarDay ->
                 CalendarDayCell(
+                    enableAllDays = enableAllDays,
+                    enableWeekDays = enableWeekDays,
                     calendarDay = calendarDay,
                     onClick = {
                         if (calendarDay.isFromCurrentMonth &&
@@ -200,17 +197,26 @@ fun CalendarGrid(
 // 5. Individual Day Cell Component
 @Composable
 fun CalendarDayCell(
+    enableAllDays: Boolean?=false,
+    enableWeekDays: Boolean?=false,
     calendarDay: CalendarDay,
     onClick: () -> Unit
 ) {
+
+    val isWeekday = calendarDay.date.dayOfWeek !in listOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+
+    val shouldHighlight = calendarDay.isSelected ||
+            enableAllDays == true ||
+            (enableWeekDays == true && isWeekday)
+
     val backgroundColor = when {
-        calendarDay.isSelected -> MaterialTheme.colorScheme.onBackground
+        shouldHighlight -> MaterialTheme.colorScheme.onBackground
         calendarDay.isToday -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
         else -> Color.Transparent
     }
 
     val textColor = when {
-        calendarDay.isSelected -> MaterialTheme.colorScheme.background
+        shouldHighlight -> MaterialTheme.colorScheme.background
         !calendarDay.isFromCurrentMonth -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
         else -> MaterialTheme.colorScheme.onSurface
     }
