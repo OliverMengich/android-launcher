@@ -28,7 +28,7 @@ interface AppsDao {
     fun blockUnblockApp(packageName: String, blocked: Int,blockReleaseDate: String?)
 
     @Query("UPDATE apps SET isHidden=:hidden WHERE packageName=:packageName;")
-    fun hideUnhideApp(packageName: String,hidden: Int)
+    suspend fun hideUnhideApp(packageName: String,hidden: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertApps(apps: List<App>)
