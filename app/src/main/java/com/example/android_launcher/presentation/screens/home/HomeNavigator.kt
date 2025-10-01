@@ -54,7 +54,13 @@ fun HomeNavigator(padding: PaddingValues, changeTheme: (String)->Unit){
         composable<SettingsScreen> {
             SettingsPage(
                 modifier = Modifier.padding(paddingValues=padding),
-                changeTheme=changeTheme
+                changeTheme=changeTheme,
+                navigateHome={
+                    navController.popBackStack()
+                },
+                navigateToBlockingAppPage = {ap->
+                    navController.navigate(route = BlockingAppScreen(packageName = ap.packageName))
+                },
             )
         }
         composable<NewEventScreen> {
