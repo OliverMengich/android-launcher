@@ -159,9 +159,7 @@ fun AppItem(ap: App, onClick: ()->Unit, onHideApp: ()->Unit, onUninstallApp: ()-
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Text(
-                                                text = if (ap.isBlocked) {
-                                                    "Unblock"
-                                                } else "Block",
+                                                text = "Block",
                                                 color = MaterialTheme.colorScheme.onBackground
                                             )
                                         }
