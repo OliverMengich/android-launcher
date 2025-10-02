@@ -1,37 +1,28 @@
 package com.example.android_launcher
 
-import android.app.ComponentCaller
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -41,14 +32,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.example.android_launcher.presentation.screens.home.HomeNavigator
-import com.example.android_launcher.presentation.screens.onboarding.OnboardingPage
 import com.example.android_launcher.services.AppMonitorService
 import com.example.android_launcher.ui.theme.AndroidlauncherTheme
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -66,21 +52,22 @@ val CAMERA_APP_PACKAGE = stringPreferencesKey(name="camera_app")
 val CLOCK_APP_PACKAGE = stringPreferencesKey(name="clock_app")
 
 class MainActivity : ComponentActivity() {
-    private lateinit var myReceiver: MyBroadCastReceiver
+    private lateinit var packagesReceiver: PackagesBroadCastReceiver
+    private lateinit var batteryReceiver: BatteryReceiver
     private val mainViewModel: MainViewModel by viewModel()
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        myReceiver = MyBroadCastReceiver()
+        packagesReceiver = PackagesBroadCastReceiver()
+        batteryReceiver = BatteryReceiver()
+        val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        registerReceiver(batteryReceiver, batteryFilter)
         val filters = IntentFilter().apply {
-            addAction(Intent.ACTION_BATTERY_CHANGED)
             addAction(Intent.ACTION_PACKAGE_ADDED)
             addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
         }
-        registerReceiver(myReceiver, filters)
-//        installSplashScreen().setKeepOnScreenCondition {
-//            mainViewModel.splashCondition
-//        }
+        registerReceiver(packagesReceiver, filters)
         enableEdgeToEdge()
         val intent = Intent(this, AppMonitorService::class.java)
         ContextCompat.startForegroundService(this, intent)
@@ -119,32 +106,8 @@ class MainActivity : ComponentActivity() {
                                 putString("THEME", opt)
                                 apply()
                             }
-//                            with(sharedRef.edit()) {
-//                                putString("THEME", opt)
-//                                apply()
-//                            }
-//                            scope.launch {
-//
-//                                with(sharedRef.edit()) {
-//                                    putString("THEME", opt)
-//                                    apply()
-//                                }
-//                            }
                         }
                     )
-//                    NavHost(navController = navController,modifier = Modifier.fillMaxSize(), startDestination = mainViewModel.startDestination){
-//                        composable<Onboarding> {
-//                            OnboardingPage(
-//                                padding=padding,
-//                                finishNavigate = {
-//                                    navController.navigate(route = HomeNavigation)
-//                                }
-//                            )
-//                        }
-//                        composable<HomeNavigation> {
-//                            HomeNavigator(padding)
-//                        }
-//                    }
                 }
             }
         }
@@ -165,25 +128,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(myReceiver)
-    }
-}
-
-data class AppInfo(
-    val name: String,
-)
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    AndroidlauncherTheme {
-        Greeting("Android")
+        unregisterReceiver(packagesReceiver)
+        unregisterReceiver(batteryReceiver)
     }
 }
