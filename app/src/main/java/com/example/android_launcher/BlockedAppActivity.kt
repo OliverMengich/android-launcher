@@ -33,12 +33,16 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.android_launcher.ui.theme.AndroidlauncherTheme
 import com.example.android_launcher.utils.formatIsoTimeToFriendly
+import com.example.android_launcher.utils.formatTimeToRequiredFormat
+import java.time.LocalTime
 
 class BlockedAppActivity: ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val appName = intent.getStringExtra("app_name")
         val releaseDate = intent.getStringExtra("release_date")
+        val isFocusModeOn = intent.getBooleanExtra("focus_mode",false)
+        val focusModeEndTime = intent.getStringExtra("focus_mode_end_time")?.let {LocalTime.parse(it)} ?: LocalTime.now()
         enableEdgeToEdge()
         enableImmersiveMode()
         val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
@@ -57,26 +61,48 @@ class BlockedAppActivity: ComponentActivity() {
             }
             AndroidlauncherTheme(darkTheme = isDarkMode.value) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { p->
-                    Column(modifier = Modifier.fillMaxSize().padding(p), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly) {
-                        Text("Blocked $appName", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
-                        Text(
-                            text="You block $appName until ${formatIsoTimeToFriendly(input=releaseDate)}. Digital detox is working, keep moving",
-                            modifier = Modifier.fillMaxWidth(fraction=.8f)
-                        )
-                        Button(onClick={ finish() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onBackground,
-                            ),
-                            modifier = Modifier.fillMaxWidth(fraction=0.9f),
-                        ){
+                    if(isFocusModeOn){
+                        Column(modifier = Modifier.fillMaxSize().padding(p), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly){
+                            Text("Focus Mode Active!", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
+                            Text("Focus mode is on keep focusing on your work, focus mode end at ${focusModeEndTime.formatTimeToRequiredFormat("12hr")}")
+                            Button(onClick={ finish() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.onBackground,
+                                ),
+                                modifier = Modifier.fillMaxWidth(fraction=0.9f),
+                            ){
+                                Text(
+                                    text="CLOSE",
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(all=10.dp),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.background,
+                                )
+                            }
+                        }
+                    } else{
+                        Column(modifier = Modifier.fillMaxSize().padding(p), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly) {
+                            Text("Blocked $appName", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
                             Text(
-                                text="CLOSE",
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(all=10.dp),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.background,
+                                text="You block $appName until ${formatIsoTimeToFriendly(input=releaseDate)}. Digital detox is working, keep moving",
+                                modifier = Modifier.fillMaxWidth(fraction=.8f)
                             )
+                            Button(onClick={ finish() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.onBackground,
+                                ),
+                                modifier = Modifier.fillMaxWidth(fraction=0.9f),
+                            ){
+                                Text(
+                                    text="CLOSE",
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(all=10.dp),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.background,
+                                )
+                            }
                         }
                     }
                 }
