@@ -122,54 +122,74 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                 appsRepository.pinUnpinApp(app.packageName, 0)
             }
             appsRepository.hideUnhideApp(app.packageName, hidden)
+            getHiddenApps()
             getApps()
         }
     }
-    fun addNewInstalledApp(app: App){
-        viewModelScope.launch {
-            appsRepository.newAppInstalled(app)
-            getApps()
+
+    fun getDomainsFromApp(appName: String): List<String> {
+        val normalized = appName
+            .trim()
+            .lowercase()
+            .replace(" ", "")
+            .replace("_", "")
+            .replace("-", "")
+
+        val domains = mutableSetOf<String>()
+
+        domains.add("$normalized.com")
+        domains.add("www.$normalized.com")
+        domains.add("m.$normalized.com")
+
+        when (normalized) {
+            "youtube" -> domains.addAll(listOf("youtu.be"))
+            "x", "twitter" -> domains.addAll(listOf("twitter.com", "mobile.twitter.com"))
+            "facebook" -> domains.addAll(listOf("fb.com"))
+            "tiktok" -> domains.addAll(listOf("vm.tiktok.com"))
+            "snapchat" -> domains.addAll(listOf("web.snapchat.com"))
+            "reddit" -> domains.addAll(listOf("old.reddit.com", "new.reddit.com"))
+            "telegram" -> domains.addAll(listOf("t.me"))
+            "whatsapp" -> domains.addAll(listOf("wa.me", "web.whatsapp.com"))
         }
+
+        return domains.toList()
     }
-    fun removeUninstalledApp(packageName: String){
-        viewModelScope.launch {
-            appsRepository.removeUninstalled(packageName)
-            getApps()
+    suspend fun loadApps() = withContext(Dispatchers.IO){
+        val defaultCameraPkg = pm?.resolveActivity(
+            Intent(MediaStore.ACTION_IMAGE_CAPTURE),
+            PackageManager.MATCH_DEFAULT_ONLY
+        )?.activityInfo?.packageName
+        val defaultDialerPkg = pm?.resolveActivity(
+            Intent(Intent.ACTION_DIAL),
+            PackageManager.MATCH_DEFAULT_ONLY
+        )?.activityInfo?.packageName
+        val defaultClockPkg = pm?.resolveActivity(
+            Intent(AlarmClock.ACTION_SHOW_ALARMS),
+            PackageManager.MATCH_DEFAULT_ONLY
+        )?.activityInfo?.packageName
+        val launchIntent = Intent(Intent.ACTION_MAIN,null).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
         }
-    }
-    suspend fun loadApps(){
-        val packages = mutableListOf<ApplicationInfo>()
-        val allPacs = pm?.getInstalledApplications(PackageManager.GET_META_DATA)
-        if (allPacs != null) {
-            for (pac in allPacs) {
-                if (pm.getLaunchIntentForPackage(pac.packageName) != null) {
-                    val appInfo = pm.getApplicationInfo(pac.packageName, 0)
-                    packages.add(pm.getApplicationInfo(pac.packageName, 0))
-                }
+        val resolveInfos = pm?.queryIntentActivities(launchIntent,0)
+        val appsList = resolveInfos?.mapNotNull { info->
+            if(info.activityInfo.packageName == context.packageName){
+                return@mapNotNull null
             }
-        }
-        packages.sortBy { pm?.getApplicationLabel(it).toString() }
-        val newApps = packages.map { ap ->
-            Log.d("package_name","package name=${ap.packageName}")
-            if (ap.packageName.contains("camera",true)){
-                context.dataStore.edit { st ->
-                    st[CAMERA_APP_PACKAGE] = ap.packageName
-                }
-            }else if (ap.packageName.contains("dialer",true)){
-                context.dataStore.edit { st ->
-                    st[PHONE_APP_PACKAGE] = ap.packageName
-                }
-            }else if (ap.packageName.contains("clock",true)){
-                context.dataStore.edit { st ->
-                    st[CLOCK_APP_PACKAGE] = ap.packageName
-                }
+            val appInfo = info.activityInfo.applicationInfo
+            val label = info.loadLabel(pm).toString()
+            val packageName = info.activityInfo.packageName
+            val category = getCategoryName(appInfo.category)
+            when(packageName){
+                defaultCameraPkg-> context.dataStore.edit { it[CAMERA_APP_PACKAGE]=packageName }
+                defaultDialerPkg-> context.dataStore.edit { it[PHONE_APP_PACKAGE]=packageName }
+                defaultClockPkg-> context.dataStore.edit { it[CLOCK_APP_PACKAGE]=packageName }
             }
-            val category = getCategoryName(ap.category)
-//            App(packageName = ap.packageName, category = category, name = pm?.getApplicationLabel(ap).toString())
-            App(packageName = ap.packageName, category = category, name = ap.loadLabel(pm as PackageManager).toString())
-        }
-        appsRepository.insertApps(newApps)
-        _apps.value = newApps
+            val appDomains = getDomainsFromApp(label)
+            Log.d("app_domains",appDomains.toString())
+            App(packageName = packageName, category = category, domains = appDomains, name = label)
+        }?.distinctBy { it.packageName }?.sortedBy { it.name.lowercase() }
+        appsRepository.insertApps(apps=appsList ?: emptyList())
+        _apps.value = appsList ?: emptyList()
     }
     private fun getCategoryName(category: Int): String {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
