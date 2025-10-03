@@ -211,27 +211,10 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
         }
     }
 
-    fun getAppUsageStats(context: Context, packageName: String): UsageStats? {
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-
-        val endTime = System.currentTimeMillis()
-        val startTime = endTime - 1000 * 60 * 60 * 24 // Last 24 hours
-
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            startTime,
-            endTime
-        )
-
-        // Filter for the specific app
-        return stats.find { it.packageName == packageName }
-    }
-
-     fun launchApp(app: App){
+     fun launchApp(app: App,callBackFunction: (()->Unit)?=null){
          Log.d("package_name",app.packageName)
          viewModelScope.launch(Dispatchers.IO) {
              if (app.isBlocked==true){
-                //navigate to the app blocked page.
                  Log.d("passed_time","app=$app")
                 if (app.blockReleaseDate !=null &&isDatePassed(app.blockReleaseDate )){
                     Log.d("passed_time","time is passed")
@@ -244,21 +227,25 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                         Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
                     }
                 }else {
-                    val intent = Intent(context, BlockedAppActivity::class.java).apply {
+                    Intent(context, BlockedAppActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         putExtra("app_name", app.name)
                         putExtra("release_date", app.blockReleaseDate)
-                    }
-                    context.startActivity(intent)
+                    }.also { context.startActivity(it) }
                 }
             }else {
-                 val intent = pm?.getLaunchIntentForPackage(app.packageName)
+                 val intent = pm?.getLaunchIntentForPackage(app.packageName).also {
+                     it?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                     it?.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                     it?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                 }
                  if (intent != null) {
                      context.startActivity(intent)
                  } else {
                      Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
                  }
-             }
+            }
+             callBackFunction?.invoke()
         }
     }
 }
