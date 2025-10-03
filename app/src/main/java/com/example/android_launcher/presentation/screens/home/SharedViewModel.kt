@@ -60,6 +60,18 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
     private val _navigateToBlockingAppPage = Channel<App?>()
     val navigateToBlockingAppPage = _navigateToBlockingAppPage.receiveAsFlow()
 
+
+    private val _hiddenApps = MutableStateFlow<List<App>>(emptyList())
+    val hiddenApps: StateFlow<List<App>> = _hiddenApps.asStateFlow()
+
+    fun getHiddenApps(){
+        viewModelScope.launch(Dispatchers.IO) {
+            val hdApps = appsRepository.getHiddenApps()
+            Log.d("hidden_apps",hdApps.toString())
+            _hiddenApps.value = hdApps
+        }
+    }
+
     fun getPinnedApps(){
         val pinApps = appsRepository.getPinnedApps()
         _pinnedApps.value = pinApps
