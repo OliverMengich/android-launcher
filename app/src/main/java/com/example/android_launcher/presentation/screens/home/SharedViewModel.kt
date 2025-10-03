@@ -7,11 +7,14 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.AlarmClock
+import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil3.Uri
 import com.example.android_launcher.BlockedAppActivity
 import com.example.android_launcher.CAMERA_APP_PACKAGE
 import com.example.android_launcher.CLOCK_APP_PACKAGE
@@ -28,8 +31,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.core.net.toUri
 
-class SharedViewModel(private val appsRepository: AppsRepository, val context: Context): ViewModel() {
+class SharedViewModel(private val appsRepository: AppsRepository, private val context: Context): ViewModel() {
     val pm: PackageManager? = context.packageManager
     private val _apps = MutableStateFlow<List<App>>(emptyList())
     val apps: StateFlow<List<App>> = _apps.asStateFlow()
@@ -37,8 +42,17 @@ class SharedViewModel(private val appsRepository: AppsRepository, val context: C
     private val _pinnedApps = MutableStateFlow<List<App>>(emptyList())
     val pinnedApps: StateFlow<List<App>> = _pinnedApps.asStateFlow()
 
-
     val batteryInfo = appsRepository.batteryInfo
+    val refetchAppsFlow = appsRepository.refetchAppsFlow
+    init {
+        viewModelScope.launch {
+            appsRepository.refetchAppsFlow.collect { rf->
+                if (rf==true){
+                    getApps()
+                }
+            }
+        }
+    }
 
     private val _navigateToBlockedAppPage = Channel<App?>()
     val navigateToBlockedAppPage = _navigateToBlockedAppPage.receiveAsFlow()
@@ -60,13 +74,13 @@ class SharedViewModel(private val appsRepository: AppsRepository, val context: C
     }
 
     fun getApps(){
-        val ftApps = appsRepository.getAllApps()
-        if (ftApps.isEmpty()){
-            viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val ftApps = appsRepository.getAllApps()
+            if (ftApps.isEmpty()){
                 loadApps()
+            }else{
+                _apps.value = ftApps
             }
-        }else{
-            _apps.value = ftApps
         }
     }
 
