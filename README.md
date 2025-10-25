@@ -169,7 +169,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📧 Contact
 
 - Email: kemeioliver2000@gmail.com
-- Twitter: [@PlanaraLauncher](https://twitter.com/OllieKem7)
+- Twitter: [@OllieKem7](https://twitter.com/OllieKem7)
 
 ---
 
