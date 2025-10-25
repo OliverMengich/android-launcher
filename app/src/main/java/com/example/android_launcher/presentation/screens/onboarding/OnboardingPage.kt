@@ -41,7 +41,9 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val user = Firebase.auth.currentUser
-    // gets the current logged in user.
+    val sharedPref = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
+    val isLoggedInUser = sharedPref.getBoolean("IS_AUTHENTICATED",false)
+
     val pagerState = rememberPagerState(initialPage = activePage) {
         6
     }
@@ -86,8 +88,17 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
                             viewModel.loginWithEmailAndPassword(email,password)
                         },
                         navigateToNextPage = {
-                            scope.launch {
-                                pagerState.animateScrollToPage(page = pagerState.currentPage+1)
+                            if (isLoggedInUser){
+                                val startIntent = Intent(context, MainActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                }
+                                context.startActivity(startIntent)
+                            }else{
+                                scope.launch {
+                                    pagerState.animateScrollToPage(page = pagerState.currentPage+1)
+                                }
                             }
                         }
                     )
@@ -147,11 +158,6 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
                                     pagerState.animateScrollToPage(page = pagerState.currentPage+1)
                                 }
                             }else {
-//                                val intent = Intent(
-//                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-//                                    "package:${context.packageName}".toUri()
-//                                )
-//                                overlayPermissionLauncher.launch(intent)
                                 viewModel.requestOverlayPermission()
                             }
                         },
@@ -179,16 +185,14 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
                     FinishPage(
                         navigateToNextPage = {
                             scope.launch {
-                                val sharedPref = context.getSharedPreferences(
-                                    "settings_value",
-                                    Context.MODE_PRIVATE
-                                )
                                 with(sharedPref.edit()) {
                                     putBoolean("IS_AUTHENTICATED", true)
                                     apply()
                                 }
                                 val startIntent = Intent(context, MainActivity::class.java).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                                 }
                                 context.startActivity(startIntent)
                             }
