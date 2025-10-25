@@ -1,6 +1,7 @@
 package com.example.android_launcher.presentation.screens.onboarding.components
 
 import android.app.Activity
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -72,14 +73,13 @@ fun SignInSignUp(navigateToNextPage:()-> Unit,navigateToPrev: ()->Unit,loginWith
                 navigateToNextPage()
                 isLoading = false
             },
-            onError = {
-                Toast.makeText(context,"Login successful.", Toast.LENGTH_SHORT).show()
+            onError = { e->
+                Toast.makeText(context,"Login error ${e.message}", Toast.LENGTH_SHORT).show()
                 isLoading = false
             }
         )
     }
     fun launchTwitterSignIn(){
-
         isLoading = true
         twitterAuthManager.signInWithTwitter(
             onSuccess = { user->
@@ -90,6 +90,7 @@ fun SignInSignUp(navigateToNextPage:()-> Unit,navigateToPrev: ()->Unit,loginWith
             onError = { e->
                 isLoading = false
                 Toast.makeText(context,"Error ${e.message}", Toast.LENGTH_SHORT).show()
+                Log.d("twitter_Error",e.message.toString())
             }
         )
 //        TwitterSignInUtils.doTwitterSignIn(
@@ -180,13 +181,13 @@ fun SignInSignUp(navigateToNextPage:()-> Unit,navigateToPrev: ()->Unit,loginWith
                     },
                     icon = R.drawable.google,
                 )
-                SocialButton(
-                    title = "Continue with Twitter",
-                    onClick = {
-                        launchTwitterSignIn()
-                    },
-                    icon = R.drawable.x,
-                )
+//                SocialButton(
+//                    title = "Continue with Twitter",
+//                    onClick = {
+//                        launchTwitterSignIn()
+//                    },
+//                    icon = R.drawable.x,
+//                )
             }
         }
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)){
