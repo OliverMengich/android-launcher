@@ -33,6 +33,8 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.android_launcher.presentation.screens.home.HomeNavigator
+import com.example.android_launcher.receivers.BatteryReceiver
+import com.example.android_launcher.receivers.PackagesBroadCastReceiver
 import com.example.android_launcher.services.AppMonitorService
 import com.example.android_launcher.ui.theme.AndroidlauncherTheme
 import kotlinx.serialization.Serializable
