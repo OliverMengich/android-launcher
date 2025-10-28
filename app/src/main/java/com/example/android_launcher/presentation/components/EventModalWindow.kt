@@ -175,20 +175,20 @@ fun EventModalWindow(selectedEvent: Event,onDeletePressed: ()->Unit,onUpdatePres
                 )
                 Text(
                     text= selectedEvent.startTime.formatTimeToRequiredFormat(tmFmt),
-                    Modifier.clickable{
+                    Modifier.clickable(enabled = isEditable,onClick={
                         category="startTime"
                         timePickerState.hour = selectedEvent.startTime.hour
                         timePickerState.minute = selectedEvent.startTime.minute
-                    },
+                    }),
                     color = textColor,
                 )
             }
             Row(
-                Modifier.fillMaxWidth().padding(all=16.dp).clickable{
+                Modifier.fillMaxWidth().padding(all=16.dp).clickable(enabled = isEditable,onClick={
                     category="endTime"
                     timePickerState.hour = selectedEvent.endTime.hour
                     timePickerState.minute = selectedEvent.endTime.minute
-                },
+                }),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
