@@ -1,8 +1,8 @@
 # Planara Launcher
 
 ![Planara Launcher](https://img.shields.io/badge/platform-Android-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.9-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-orange.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+<!--![License](https://img.shields.io/badge/license-MIT-orange.svg)-->
 
 A minimalist Android launcher designed to help you focus on what matters most. Planara combines the simplicity of a distraction-free home screen with powerful planning and productivity features.
 
@@ -29,14 +29,14 @@ A minimalist Android launcher designed to help you focus on what matters most. P
 - Routine reminders and notifications
 - Track routine completion and streaks
 
-### 🧘 Focus Mode
+### 🧘 Focus Mode (Coming soon)
 - Block distracting apps during focus sessions
 - Customizable focus timers (Pomodoro, custom durations)
 - Whitelist essential apps for focus periods
 - Schedule automatic focus sessions
 - Focus statistics and insights
 
-### 🔔 Smart Notifications
+### 🔔 Smart Notifications (Coming Soon)
 - Notification management and batching
 - Hide notifications during focus mode
 - Important contact breakthrough
@@ -45,7 +45,6 @@ A minimalist Android launcher designed to help you focus on what matters most. P
 ### ⚡ Additional Features
 - App usage statistics
 - Quick settings access
-- Gesture controls
 - Dark and light themes
 - Battery and time widget
 - Notes quick access
@@ -57,7 +56,7 @@ A minimalist Android launcher designed to help you focus on what matters most. P
 ## 🚀 Installation
 
 ### From GitHub Releases
-1. Download the latest APK from the [Releases](https://github.com/yourusername/planara-launcher/releases) page
+1. Download the latest APK from the [Releases](https://github.com/OliverMengich/planara-launcher/releases) page
 2. Enable "Install from Unknown Sources" in your Android settings
 3. Open the APK file and follow the installation prompts
 4. Set Planara as your default launcher
@@ -136,7 +135,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📋 Roadmap
+<!--## 📋 Roadmap
 
 - [ ] Widget support
 - [ ] Task manager integration
@@ -146,7 +145,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] Smart routine suggestions
 - [ ] Integration with productivity apps
 - [ ] Customizable gestures
-
+-->
 ## 🐛 Bug Reports
 
 Found a bug? Please open an issue on GitHub with:
@@ -155,10 +154,10 @@ Found a bug? Please open an issue on GitHub with:
 - Expected vs actual behavior
 - Screenshots (if applicable)
 
-## 📄 License
+<!--## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
+-->
 ## 🙏 Acknowledgments
 
 - Inspired by minimalist launcher philosophy
@@ -169,9 +168,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-- Email: support@planaralauncher.com
-- Website: https://planaralauncher.com
-- Twitter: [@PlanaraLauncher](https://twitter.com/PlanaraLauncher)
+- Email: kemeioliver2000@gmail.com
+- Twitter: [@PlanaraLauncher](https://twitter.com/OllieKem7)
 
 ---
 
