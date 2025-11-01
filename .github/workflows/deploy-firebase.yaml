@@ -2,9 +2,9 @@ name: Android build & Firebase
 
 on:
   push:
-    branches: [v1.0]
+    branches: [prod]
   pull_request:
-    branches: [master]
+    branches: [prod]
   workflow_dispatch:
     inputs:
       release_notes:
