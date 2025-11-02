@@ -18,6 +18,11 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        val apiKey = project.findProperty("API_KEY") as String? ?: "default_key"
+        val secretToken = project.findProperty("SECRET_TOKEN") as String? ?: ""
+        buildConfigField("String", "API_KEY", "\"$apiKey\"")
+        buildConfigField("String", "SECRET_TOKEN", "\"$secretToken\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -39,6 +44,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -53,6 +59,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.material3)
+    implementation(libs.androidx.lifecycle.service)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -79,8 +86,15 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
 
-    //Datastore
+    //Preference Datastore
     implementation(libs.androidx.datastore.preferences)
+
+    //Datastore
+    implementation(libs.androidx.datastore)
+
+    //Serialization Json
+    implementation(libs.kotlinx.serialization.json)
+
 
     //Room Database
     implementation(libs.androidx.room.runtime)
@@ -91,4 +105,7 @@ dependencies {
     //Coil
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+
+    //compose rich editor
+    implementation(libs.richeditor.compose)
 }
