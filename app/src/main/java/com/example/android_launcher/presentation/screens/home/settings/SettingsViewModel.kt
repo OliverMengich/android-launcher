@@ -36,33 +36,33 @@ class SettingsViewModel(private val appsRepository: AppsRepository, private val 
             Toast.makeText(context,"Invalid date",Toast.LENGTH_SHORT).show()
             return
         }
-        val sharedRef = context.getSharedPreferences("settings_value",MODE_PRIVATE)
-        val isFocusModeOn = sharedRef.getBoolean("focus_mode",false)
-        val focusModeEndTime = sharedRef.getString("focus_mode_end_time","").let {
-            if (it.isNullOrEmpty()) null else LocalDateTime.parse(it)
-        }
-        if (isFocusModeOn && LocalDateTime.now().isAfter(focusModeEndTime)){
-            Toast.makeText(context,"Focus mode is already expired",Toast.LENGTH_SHORT).show()
-            sharedRef.edit{
-                putBoolean("focus_mode",false)
-                putString("focus_mode_end_time","")
-                apply()
-            }
-            return
-        }
-        if (isFocusModeOn && focusModeEndTime!=null){
-            Toast.makeText(context,"Focus mode is already on",Toast.LENGTH_SHORT).show()
-            return
-        }
-        val focusService = Intent(context, FocusModeService::class.java).apply {
-            putExtra("END_TIME",isoDateTime)
-        }
-        sharedRef.edit {
-            putBoolean("focus_mode", true)
-            putString("focus_mode_end_time", isoDateTime)
-            apply()
-        }
-        context.startForegroundService(focusService)
+//        val sharedRef = context.getSharedPreferences("settings_value",MODE_PRIVATE)
+//        val isFocusModeOn = sharedRef.getBoolean("focus_mode",false)
+//        val focusModeEndTime = sharedRef.getString("focus_mode_end_time","").let {
+//            if (it.isNullOrEmpty()) null else LocalDateTime.parse(it)
+//        }
+//        if (isFocusModeOn && LocalDateTime.now().isAfter(focusModeEndTime)){
+//            Toast.makeText(context,"Focus mode is already expired",Toast.LENGTH_SHORT).show()
+//            sharedRef.edit{
+//                putBoolean("focus_mode",false)
+//                putString("focus_mode_end_time","")
+//                apply()
+//            }
+//            return
+//        }
+//        if (isFocusModeOn && focusModeEndTime!=null){
+//            Toast.makeText(context,"Focus mode is already on",Toast.LENGTH_SHORT).show()
+//            return
+//        }
+//        val focusService = Intent(context, FocusModeService::class.java).apply {
+//            putExtra("END_TIME",isoDateTime)
+//        }
+//        sharedRef.edit {
+//            putBoolean("focus_mode", true)
+//            putString("focus_mode_end_time", isoDateTime)
+//            apply()
+//        }
+//        context.startForegroundService(focusService)
     }
     fun handleUninstall(){
         val packageName = context.packageName
