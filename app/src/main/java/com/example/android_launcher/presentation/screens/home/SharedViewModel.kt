@@ -33,33 +33,32 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.net.toUri
+import com.example.android_launcher.domain.manager.LocalManager
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 
 class SharedViewModel(private val appsRepository: AppsRepository, private val context: Context): ViewModel() {
     val pm: PackageManager? = context.packageManager
-    private val _apps = MutableStateFlow<List<App>>(emptyList())
-    val apps: StateFlow<List<App>> = _apps.asStateFlow()
+
+    val localManagerData = context.dataStore.data.stateIn(
+        viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
+        initialValue = LocalManager()
+    )
+
+    val apps = appsRepository.getAllApps().stateIn(viewModelScope, started=SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000), initialValue=emptyList())
 
     private val _pinnedApps = MutableStateFlow<List<App>>(emptyList())
     val pinnedApps: StateFlow<List<App>> = _pinnedApps.asStateFlow()
 
     val batteryInfo = appsRepository.batteryInfo
     val refetchAppsFlow = appsRepository.refetchAppsFlow
-    init {
-        viewModelScope.launch {
-            appsRepository.refetchAppsFlow.collect { rf->
-                if (rf==true){
-                    getApps()
-                }
-            }
-        }
-    }
 
     private val _navigateToBlockedAppPage = Channel<App?>()
     val navigateToBlockedAppPage = _navigateToBlockedAppPage.receiveAsFlow()
 
     private val _navigateToBlockingAppPage = Channel<App?>()
     val navigateToBlockingAppPage = _navigateToBlockingAppPage.receiveAsFlow()
-
 
     private val _hiddenApps = MutableStateFlow<List<App>>(emptyList())
     val hiddenApps: StateFlow<List<App>> = _hiddenApps.asStateFlow()
@@ -80,19 +79,7 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
     init {
         viewModelScope.launch(Dispatchers.IO) {
             Log.d("getting_app","apps")
-            getApps()
             getPinnedApps()
-        }
-    }
-
-    fun getApps(){
-        viewModelScope.launch(Dispatchers.IO) {
-            val ftApps = appsRepository.getAllApps()
-            if (ftApps.isEmpty()){
-                loadApps()
-            }else{
-                _apps.value = ftApps
-            }
         }
     }
 
@@ -102,7 +89,7 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                 appsRepository.pinUnpinApp(app.packageName, 0)
             }
             appsRepository.blockUnblockApp(app.packageName, blocked, blockReleaseDate = "")
-            getApps()
+
         }
     }
     fun pinUnpinApp(app: App, pinned: Int){
@@ -113,9 +100,9 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
         viewModelScope.launch(Dispatchers.IO) {
             appsRepository.pinUnpinApp(app.packageName,pinned)
             getPinnedApps()
-            getApps()
         }
     }
+
     fun hideUnhideAppFc(app: App,hidden: Int){
         viewModelScope.launch(Dispatchers.IO) {
             if (app.isPinned == true) {
@@ -123,91 +110,6 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
             }
             appsRepository.hideUnhideApp(app.packageName, hidden)
             getHiddenApps()
-            getApps()
-        }
-    }
-
-    fun getDomainsFromApp(appName: String): List<String> {
-        val normalized = appName
-            .trim()
-            .lowercase()
-            .replace(" ", "")
-            .replace("_", "")
-            .replace("-", "")
-
-        val domains = mutableSetOf<String>()
-
-        domains.add("$normalized.com")
-        domains.add("www.$normalized.com")
-        domains.add("m.$normalized.com")
-
-        when (normalized) {
-            "youtube" -> domains.addAll(listOf("youtu.be"))
-            "x", "twitter" -> domains.addAll(listOf("twitter.com", "mobile.twitter.com"))
-            "facebook" -> domains.addAll(listOf("fb.com"))
-            "tiktok" -> domains.addAll(listOf("vm.tiktok.com"))
-            "snapchat" -> domains.addAll(listOf("web.snapchat.com"))
-            "reddit" -> domains.addAll(listOf("old.reddit.com", "new.reddit.com"))
-            "telegram" -> domains.addAll(listOf("t.me"))
-            "whatsapp" -> domains.addAll(listOf("wa.me", "web.whatsapp.com"))
-        }
-
-        return domains.toList()
-    }
-    suspend fun loadApps() = withContext(Dispatchers.IO){
-        val defaultCameraPkg = pm?.resolveActivity(
-            Intent(MediaStore.ACTION_IMAGE_CAPTURE),
-            PackageManager.MATCH_DEFAULT_ONLY
-        )?.activityInfo?.packageName
-        val defaultDialerPkg = pm?.resolveActivity(
-            Intent(Intent.ACTION_DIAL),
-            PackageManager.MATCH_DEFAULT_ONLY
-        )?.activityInfo?.packageName
-        val defaultClockPkg = pm?.resolveActivity(
-            Intent(AlarmClock.ACTION_SHOW_ALARMS),
-            PackageManager.MATCH_DEFAULT_ONLY
-        )?.activityInfo?.packageName
-        val launchIntent = Intent(Intent.ACTION_MAIN,null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        val resolveInfos = pm?.queryIntentActivities(launchIntent,0)
-        val appsList = resolveInfos?.mapNotNull { info->
-            if(info.activityInfo.packageName == context.packageName){
-                return@mapNotNull null
-            }
-            val appInfo = info.activityInfo.applicationInfo
-            val label = info.loadLabel(pm).toString()
-            val packageName = info.activityInfo.packageName
-            val category = getCategoryName(appInfo.category)
-            when(packageName){
-                defaultCameraPkg-> context.dataStore.edit { it[CAMERA_APP_PACKAGE]=packageName }
-                defaultDialerPkg-> context.dataStore.edit { it[PHONE_APP_PACKAGE]=packageName }
-                defaultClockPkg-> context.dataStore.edit { it[CLOCK_APP_PACKAGE]=packageName }
-            }
-            val appDomains = getDomainsFromApp(label)
-            Log.d("app_domains",appDomains.toString())
-            App(packageName = packageName, category = category, domains = appDomains, name = label)
-        }?.distinctBy { it.packageName }?.sortedBy { it.name.lowercase() }
-        appsRepository.insertApps(apps=appsList ?: emptyList())
-        _apps.value = appsList ?: emptyList()
-    }
-    private fun getCategoryName(category: Int): String {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            when (category) {
-                ApplicationInfo.CATEGORY_GAME -> "Game"
-                ApplicationInfo.CATEGORY_AUDIO -> "Audio"
-                ApplicationInfo.CATEGORY_VIDEO -> "Video"
-                ApplicationInfo.CATEGORY_IMAGE -> "Image"
-                ApplicationInfo.CATEGORY_SOCIAL -> "Social"
-                ApplicationInfo.CATEGORY_NEWS -> "News"
-                ApplicationInfo.CATEGORY_MAPS -> "Maps"
-                ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productivity"
-                ApplicationInfo.CATEGORY_ACCESSIBILITY -> "Accessibility"
-                ApplicationInfo.CATEGORY_UNDEFINED -> "Undefined"
-                else -> "Other"
-            }
-        } else {
-            "Not Available (API < 26)"
         }
     }
 
@@ -219,7 +121,6 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                 if (app.blockReleaseDate !=null &&isDatePassed(app.blockReleaseDate )){
                     Log.d("passed_time","time is passed")
                     appsRepository.blockUnblockApp(app.packageName,0,null)
-                    getApps()
                     val intent = pm?.getLaunchIntentForPackage(app.packageName)
                     if (intent != null){
                         context.startActivity(intent)
