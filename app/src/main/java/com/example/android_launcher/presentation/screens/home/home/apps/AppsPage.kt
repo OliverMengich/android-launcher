@@ -3,6 +3,7 @@ package com.example.android_launcher.presentation.screens.home.home.apps
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,16 +21,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -59,6 +63,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.flowWithLifecycle
 import com.example.android_launcher.OPEN_KEYBOARD
 import com.example.android_launcher.dataStore
 import com.example.android_launcher.domain.models.App
@@ -74,12 +81,15 @@ import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppPage:(App)->Unit,isFocused: Boolean, navigateToBlockedApp:(App)->Unit){
+fun AppsPage(viewModel: SharedViewModel = koinViewModel(), navigateToHome:()->Unit, navigateToBlockingAppPage:(App)->Unit,isFocused: Boolean, navigateToBlockedApp:(App)->Unit){
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val localManagerData by viewModel.localManagerData.collectAsStateWithLifecycle()
+
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
-    val apps by viewModel.apps.collectAsState()
+    val apps by viewModel.apps.collectAsStateWithLifecycle()
     var textField by remember { mutableStateOf("") }
 
     val filteredApps by remember(apps, textField) {
@@ -88,10 +98,10 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
             apps
                 .filter { it.name.lowercase().contains(other=query) }
                 .sortedWith(
-                comparator = compareByDescending<App> { it.name.lowercase().startsWith(query) }
-                    .thenByDescending { it.name.lowercase().contains(other=query) }
-                    .thenBy { it.name.lowercase() }
-            )
+                    comparator = compareByDescending<App> { it.name.lowercase().startsWith(prefix=query) }
+                        .thenByDescending { it.name.lowercase().contains(other=query) }
+                        .thenBy { it.name.lowercase() }
+                )
         }
     }
     val currentTime = Calendar.getInstance()
@@ -104,13 +114,10 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
     var startTime by remember{mutableStateOf<LocalDate?>(null)}
     var endTime by remember{mutableStateOf<LocalDate?>(null)}
 
-
-
     val context = LocalContext.current
 
     LaunchedEffect(key1=isFocused) {
-        val sharedRef = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
-        val isOpenKeyboard = sharedRef.getBoolean("IS_OPEN_KEYBOARD",false)
+        val isOpenKeyboard = localManagerData.displaySettings.autoOpenKeyboard
         if (isFocused && isOpenKeyboard) {
             focusRequester.requestFocus()
             keyboardController?.show()
@@ -118,6 +125,9 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
             focusManager.clearFocus()
             keyboardController?.hide()
         }
+    }
+    BackHandler {
+        navigateToHome()
     }
     LaunchedEffect(key1 = viewModel.navigateToBlockedAppPage, key2 = viewModel.navigateToBlockingAppPage) {
         viewModel.navigateToBlockedAppPage.collectLatest { app->
@@ -132,12 +142,9 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(
-            modifier = Modifier.fillMaxWidth(.9f).background(Color.Transparent, shape = RoundedCornerShape(40.dp)),
-//            contentAlignment = Alignment.CenterStart,
-        ) {
-            Text("My Apps", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
+    Column(Modifier.fillMaxSize().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth(.9f).background(Color.Transparent, shape = RoundedCornerShape(40.dp))) {
+            Text(text="My Apps", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
             OutlinedTextField(
                 value = textField,
                 onValueChange = { textField = it },
@@ -158,7 +165,13 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
                 keyboardActions = KeyboardActions(
                     onGo = {
                         if (filteredApps.isNotEmpty()) {
-                            viewModel.launchApp(app=filteredApps[0])
+                            viewModel.launchApp(
+                                app=filteredApps[0],
+                                callBackFunction = {
+                                    textField = ""
+                                    navigateToHome()
+                                }
+                            )
                         }
                     }
                 ),
@@ -169,15 +182,21 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(),navigateToBlockingAppP
                 },
             )
         }
-        LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = if(textField=="") 0.dp else 30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        LazyColumn(Modifier.fillMaxWidth().padding(top = if(textField=="") 0.dp else 30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             items(items=filteredApps) { ap->
                 AppItem(
                     onClick = {
-                        viewModel.launchApp(app=ap)
-                        textField = ""
+                        viewModel.launchApp(
+                            app=ap,
+                            callBackFunction = {
+                                textField = ""
+                                navigateToHome()
+                            }
+                        )
                     },
                     ap = ap,
                     onHideApp = {
+                        textField=""
                         scope.launch {
                             viewModel.hideUnhideAppFc(app=ap, hidden=1)
                         }
