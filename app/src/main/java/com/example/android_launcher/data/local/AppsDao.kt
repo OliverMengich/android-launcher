@@ -6,11 +6,12 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.android_launcher.domain.models.App
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AppsDao {
     @Query("SELECT * FROM apps WHERE isHidden=0;")
-    fun getAllApps(): List<App>
+    fun getAllApps(): Flow<List<App>>
 
     @Query("SELECT * FROM apps WHERE isPinned=1;")
     fun getPinnedApps(): List<App>
