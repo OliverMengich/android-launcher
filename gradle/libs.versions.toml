@@ -1,5 +1,5 @@
 [versions]
-agp = "8.9.3"
+agp = "8.13.1"
 coilCompose = "3.2.0"
 coreSplashscreen = "1.0.1"
 credentials = "1.5.0"
@@ -8,12 +8,12 @@ firebaseAuth = "23.2.1"
 firebaseBom = "33.14.0"
 googleid = "1.1.1"
 koinAndroidxCompose = "4.0.4"
-kotlin = "2.0.21"
+kotlin = "2.2.21"
 coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-kotlinxSerializationJson = "1.8.1"
+kotlinxSerializationJson = "1.9.0"
 lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
 composeBom = "2025.05.01"
@@ -22,7 +22,9 @@ navigation3Ui = "1.0.0-alpha02"
 navigationCompose = "2.9.0"
 roomRuntime = "2.7.1"
 material3 = "1.3.2"
-
+lifecycleService = "2.9.4"
+composeRichEditor = "1.0.0-rc13"
+dataStore = "1.2.0"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
@@ -54,8 +56,12 @@ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-man
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koinAndroidxCompose" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlin:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleService" }
+richeditor-compose = { module="com.mohamedrejeb.richeditor:richeditor-compose", version.ref="composeRichEditor"}
+androidx-datastore = { module="androidx.datastore:datastore", version.ref="dataStore" }
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
