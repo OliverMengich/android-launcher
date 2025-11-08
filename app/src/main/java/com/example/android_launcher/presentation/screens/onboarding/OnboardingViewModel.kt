@@ -47,6 +47,15 @@ class OnboardingViewModel(private val context: Context): ViewModel() {
         val resolveInfo = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
         return resolveInfo?.activityInfo?.packageName == context.packageName
     }
+    fun loginUser (isLoggedIn: Boolean){
+        viewModelScope.launch {
+            context.dataStore.updateData {
+                it.copy(
+                    isLoggedIn = isLoggedIn
+                )
+            }
+        }
+    }
     fun requestOverlayPermission(){
         if (!Settings.canDrawOverlays(context)){
             val intent = Intent(

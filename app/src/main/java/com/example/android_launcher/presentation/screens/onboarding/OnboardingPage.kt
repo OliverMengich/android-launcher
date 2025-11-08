@@ -20,10 +20,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.android_launcher.IS_LOGGED_IN_KEY
 import com.example.android_launcher.MainActivity
 import com.example.android_launcher.OnboardingActivity
 import com.example.android_launcher.dataStore
+import com.example.android_launcher.domain.manager.LocalManager
 import com.example.android_launcher.presentation.screens.onboarding.components.DefaultLauncherPermissionPage
 import com.example.android_launcher.presentation.screens.onboarding.components.FinishPage
 import com.example.android_launcher.presentation.screens.onboarding.components.OverlayPermissionsPage
@@ -33,6 +35,7 @@ import com.example.android_launcher.presentation.screens.onboarding.components.W
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -41,8 +44,9 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val user = Firebase.auth.currentUser
-    val sharedPref = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
-    val isLoggedInUser = sharedPref.getBoolean("IS_AUTHENTICATED",false)
+//    val sharedPref = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
+    val isLoggedInUser = context.dataStore.data.collectAsStateWithLifecycle(initialValue = LocalManager()).value.isLoggedIn
+//    val isLoggedInUser = sharedPref.getBoolean("IS_AUTHENTICATED",false)
 
     val pagerState = rememberPagerState(initialPage = activePage) {
         6
@@ -185,10 +189,7 @@ fun OnboardingPage(viewModel: OnboardingViewModel = koinViewModel(),finishNaviga
                     FinishPage(
                         navigateToNextPage = {
                             scope.launch {
-                                with(sharedPref.edit()) {
-                                    putBoolean("IS_AUTHENTICATED", true)
-                                    apply()
-                                }
+                                viewModel.loginUser(isLoggedIn = true)
                                 val startIntent = Intent(context, MainActivity::class.java).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
