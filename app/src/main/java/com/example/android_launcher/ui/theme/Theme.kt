@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.example.android_launcher.domain.models.AppFonts
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
@@ -39,8 +40,9 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun AndroidlauncherTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
+    // Dynamic color is available on Android 12+,
     dynamicColor: Boolean = true,
+    defaultFont: AppFonts,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -53,10 +55,18 @@ fun AndroidlauncherTheme(
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
-
+    val typography = when(defaultFont){
+        AppFonts.Default -> DefaultTypography
+        AppFonts.Inter -> InterTypography
+        AppFonts.SpaceGrotesk -> SpaceGroteskTypography
+        AppFonts.Montserrat -> MontserratTypography
+        AppFonts.Sarina -> SarinaTypography
+        AppFonts.CrosiantMono -> CroissantTypography
+        AppFonts.DancingScript -> DancingTypography
+    }
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = typography,
         content = content
     )
 }
