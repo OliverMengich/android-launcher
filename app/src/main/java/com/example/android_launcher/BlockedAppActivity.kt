@@ -31,6 +31,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.android_launcher.domain.manager.LocalManager
 import com.example.android_launcher.ui.theme.AndroidlauncherTheme
 import com.example.android_launcher.utils.formatIsoTimeToFriendly
 import com.example.android_launcher.utils.formatTimeToRequiredFormat
@@ -45,26 +47,30 @@ class BlockedAppActivity: ComponentActivity() {
         val focusModeEndTime = intent.getStringExtra("focus_mode_end_time")?.let {LocalTime.parse(it)} ?: LocalTime.now()
         enableEdgeToEdge()
         enableImmersiveMode()
-        val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
+//        val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
         setContent {
             val isDarkMode = remember { mutableStateOf(false) }
+            val localManagerData = dataStore.data.collectAsStateWithLifecycle(initialValue = LocalManager()).value
             val x = isSystemInDarkTheme()
             LaunchedEffect(Unit) {
-                val themeOpt = sharedRef.getString("THEME", "SYSTEM")
-                isDarkMode.value = if(themeOpt.toString()=="SYSTEM"){
-                    x
-                }else if(themeOpt.toString()=="Dark"){
-                    true
-                }else{
-                    false
+                isDarkMode.value = when (localManagerData.displaySettings.theme) {
+                    "SYSTEM" -> {
+                        x
+                    }
+                    "Dark" -> {
+                        true
+                    }
+                    else -> {
+                        false
+                    }
                 }
             }
-            AndroidlauncherTheme(darkTheme = isDarkMode.value) {
+            AndroidlauncherTheme(darkTheme = isDarkMode.value, defaultFont = localManagerData.displaySettings.currentFont) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { p->
                     if(isFocusModeOn){
                         Column(modifier = Modifier.fillMaxSize().padding(p), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceEvenly){
                             Text("Focus Mode Active!", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
-                            Text("Focus mode is on keep focusing on your work, focus mode end at ${focusModeEndTime.formatTimeToRequiredFormat("12hr")}")
+                            Text("Focus mode is on keep focusing on your work, focus mode end at ${focusModeEndTime.formatTimeToRequiredFormat("hh:mm a")}")
                             Button(onClick={ finish() },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.onBackground,
