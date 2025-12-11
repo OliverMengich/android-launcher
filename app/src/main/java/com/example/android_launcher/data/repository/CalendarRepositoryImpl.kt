@@ -1,35 +1,25 @@
 package com.example.android_launcher.data.repository
 
+import android.util.Log
 import com.example.android_launcher.data.local.CalendarDao
 import com.example.android_launcher.domain.models.Event
 import com.example.android_launcher.domain.repository.CalendarRepository
+import kotlinx.coroutines.flow.Flow
+import java.time.DayOfWeek
 import java.time.LocalDate
-import java.util.Calendar
 
 class CalendarRepositoryImpl(private val calendarDao: CalendarDao): CalendarRepository {
-    override suspend fun getTodayEvents(startDay: Long): List<Event> {
-        val calendar = Calendar.getInstance()
-        val startOfDay = calendar.apply {
-            timeInMillis = startDay
-            set(Calendar.HOUR_OF_DAY,0)
-            set(Calendar.MINUTE,0)
-            set(Calendar.SECOND,0)
-            set(Calendar.SECOND,0)
-            set(Calendar.MILLISECOND,0)
-        }.timeInMillis
+    override fun getTodayEvents(startDay: LocalDate): Flow<List<Event>> {
+        val dateString = startDay.toString()
 
-        val endOfDay = calendar.apply {
-            timeInMillis = startDay
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-            set(Calendar.MILLISECOND, 999)
-        }.timeInMillis
-        val today = LocalDate.now()
-        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-        val isWeekDay = dayOfWeek != Calendar.SATURDAY && dayOfWeek != Calendar.SUNDAY
+        val isWeekDay = startDay.dayOfWeek !in listOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+        Log.d("CalendarRepositoryImpl", "getTodayEvents: $dateString")
+        Log.d("CalendarRepositoryImpl", "getTodayEvents: ${startDay.dayOfWeek}. isWeekDay: $isWeekDay")
+        return calendarDao.getTodayEvents(date = dateString, dayName = startDay.dayOfWeek.toString(), isWeekDay = isWeekDay)
+    }
 
-        return calendarDao.getTodayEvents(startDate = startOfDay, endDate = endOfDay, isWeekDay = isWeekDay,)
+    override suspend fun updateEvent(event: Event) {
+        calendarDao.updateEvent(event)
     }
 
     override suspend fun deleteEvent(id: Int) {
@@ -39,5 +29,4 @@ class CalendarRepositoryImpl(private val calendarDao: CalendarDao): CalendarRepo
     override suspend fun insertEvent(event: Event) {
         calendarDao.insertEvent(event)
     }
-
 }
