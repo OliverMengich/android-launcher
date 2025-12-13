@@ -4,24 +4,34 @@ import android.app.AppOpsManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.PendingIntentCompat
+import androidx.core.content.edit
 import com.example.android_launcher.BlockedAppActivity
 import com.example.android_launcher.OnboardingActivity
+import com.example.android_launcher.R
+import com.example.android_launcher.dataStore
 import com.example.android_launcher.domain.repository.AppsRepository
 import com.example.android_launcher.utils.isDatePassed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.core.context.GlobalContext
+import java.time.LocalDateTime
 
 class AppMonitorService: Service() {
 
@@ -37,9 +47,10 @@ class AppMonitorService: Service() {
         override fun run() {
             serviceScope.launch {
 //                val isLoggedIn = ctxDataStore.data.map { it[IS_LOGGED_IN_KEY] ?: false }.first()
+                val isLoggedInUser = dataStore.data.map { it.isLoggedIn }.first()
                 val hasOverlay = Settings.canDrawOverlays(this@AppMonitorService)
-                val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
-                val isLoggedInUser = sharedRef.getBoolean("IS_AUTHENTICATED",false)
+//                val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
+//                val isLoggedInUser = sharedRef.getBoolean("IS_AUTHENTICATED",false)
                 Log.d("tag_here", "isLogged = $isLoggedInUser. has overlay= $hasOverlay has usage= ${hasUsageAccess(this@AppMonitorService)}")
 
                 if (hasOverlay && !isLoggedInUser){
@@ -64,6 +75,34 @@ class AppMonitorService: Service() {
                 if(isLoggedInUser) {
                     val topApp = getTopApp()
                     val appsRepository = GlobalContext.get().get<AppsRepository>()
+//                    val sharedRef = getSharedPreferences("settings_value",Context.MODE_PRIVATE)
+                    val focusMode = dataStore.data.map { it.focusMode }.first()
+//                    val isFocusModeOn = sharedRef.getBoolean("focus_mode",false)
+                    if (focusMode.isActive && !FocusModeService.isRunning){
+
+                        val focusModeEndTime = focusMode.endTime.let {
+                            LocalDateTime.parse(it)
+                        }
+
+                        if (focusModeEndTime !=null && LocalDateTime.now().isAfter(focusModeEndTime)){
+                            dataStore.updateData {
+                                it.copy(
+                                    focusMode = it.focusMode.copy(
+                                        isActive = false,
+                                        endTime = ""
+                                    )
+                                )
+                            }
+//                            sharedRef.edit {
+//                                putBoolean("focus_mode",false)
+//                                putString("focus_mode_end_time","")
+//                                apply()
+//                            }
+                        }else if(focusModeEndTime != null && LocalDateTime.now().isBefore(focusModeEndTime)){
+                            Log.d("focusModeState","restarting focus mode because it was stopped")
+                            startForegroundService(Intent(this@AppMonitorService,FocusModeService::class.java))
+                        }
+                    }
 
                     val blockedApps = appsRepository.getBlockedApps()
 
@@ -94,6 +133,7 @@ class AppMonitorService: Service() {
         }
     }
 
+
 //    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 //        Thread {
 //            while (running){
@@ -119,6 +159,7 @@ class AppMonitorService: Service() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 putExtra("active_page", index)
             }
+            OnboardingActivity.isVisible = true
             startActivity(intent)
         }
     }
@@ -141,28 +182,48 @@ class AppMonitorService: Service() {
     }
 
     override fun onDestroy() {
+        Log.d("AppMonitorService","stopped monitoring service.")
         handler.removeCallbacks(checkRunnable)
         running = false
         super.onDestroy()
         serviceJob.cancel()
+//        val restartIntent = Intent(applicationContext, AppMonitorService::class.java)
+//        applicationContext.startForegroundService(restartIntent)
     }
-
 
     private fun startForegroundNotification() {
         val channelId = "AppMonitorChannel"
         val channel = NotificationChannel(
             channelId,
             "App Monitor",
-            NotificationManager.IMPORTANCE_LOW
-        )
+            NotificationManager.IMPORTANCE_MIN
+        ).apply {
+            setShowBadge(false)
+            enableVibration(false)
+            setSound(null, null)
+            description="Used for app monitoring service"
+        }
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+//        val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
+        val notificationIntent = Intent(this, Class.forName("com.example.android_launcher.MainActivity"))
+        val pendingIntent = PendingIntent.getActivity(this,0,notificationIntent,PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val notification = Notification.Builder(this, channelId)
-            .setContentTitle("Monitoring apps")
-            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+        val notification = NotificationCompat.Builder(this,channelId)
+            .setSmallIcon(R.drawable.planara_icon)
+            .setContentTitle("Monitoring apps.")
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
             .build()
-
+//        val notification = Notification.Builder(this, channelId)
+//            .setSmallIcon(R.drawable.planara_icon)
+//            .setContentTitle("Monitoring apps")
+//            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+//            .setSilent(true)
+//            .setOngoing(true)
+//            .build()
         startForeground(1, notification)
     }
     private fun getTopApp(): String?{
