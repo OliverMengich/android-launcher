@@ -91,9 +91,8 @@ fun AppItem(ap: App, onClick: ()->Unit, onHideApp: ()->Unit, onUninstallApp: ()-
                     }
                 }
                 Spacer(Modifier.height(5.dp))
-
             }else {
-                Column(modifier = Modifier.padding(6.dp)) {
+                Column(modifier = Modifier.padding(vertical=6.dp)) {
                     Text(
                         text=ap.name,
                         fontSize = 20.sp,
@@ -120,6 +119,7 @@ fun AppItem(ap: App, onClick: ()->Unit, onHideApp: ()->Unit, onUninstallApp: ()-
                                             tint = MaterialTheme.colorScheme.onBackground,
                                         )
                                         Text(
+                                            maxLines = 1,
                                             text = if (ap.isPinned == true) "Remove" else "Favourite",
                                             color = MaterialTheme.colorScheme.onBackground,
                                         )
@@ -138,6 +138,7 @@ fun AppItem(ap: App, onClick: ()->Unit, onHideApp: ()->Unit, onUninstallApp: ()-
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Text(
+                                            maxLines = 1,
                                             text = if (ap.isHidden == true) {
                                                 "Unhide"
                                             } else "Hide",
@@ -159,6 +160,7 @@ fun AppItem(ap: App, onClick: ()->Unit, onHideApp: ()->Unit, onUninstallApp: ()-
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Text(
+                                                maxLines = 1,
                                                 text = "Block",
                                                 color = MaterialTheme.colorScheme.onBackground
                                             )
@@ -178,6 +180,7 @@ fun AppItem(ap: App, onClick: ()->Unit, onHideApp: ()->Unit, onUninstallApp: ()-
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Text(
+                                            maxLines = 1,
                                             text = "Uninstall",
                                             color = MaterialTheme.colorScheme.onBackground
                                         )
