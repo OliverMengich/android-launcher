@@ -1,8 +1,11 @@
 package com.example.android_launcher.presentation.screens.home.settings
 
+import android.accessibilityservice.AccessibilityService
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.text.TextUtils
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -40,6 +43,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,6 +66,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.android_launcher.CAMERA_APP_PACKAGE
 import com.example.android_launcher.OPEN_KEYBOARD
@@ -69,39 +77,53 @@ import com.example.android_launcher.OnboardingActivity
 import com.example.android_launcher.R
 import com.example.android_launcher.dataStore
 import com.example.android_launcher.domain.models.App
+import com.example.android_launcher.domain.models.AppFonts
+import com.example.android_launcher.domain.models.DisplaySettings
 import com.example.android_launcher.presentation.components.AppItem
 import com.example.android_launcher.presentation.components.DateTimePickerItem
 import com.example.android_launcher.presentation.screens.home.SharedViewModel
+import com.example.android_launcher.services.MyAccessibilityService
 import com.example.android_launcher.ui.theme.checkedThumbColor
 import com.example.android_launcher.ui.theme.checkedTrackColor
 import com.example.android_launcher.ui.theme.uncheckedThumbColor
 import com.example.android_launcher.ui.theme.uncheckedTrackColor
+import com.example.android_launcher.utils.appFonts
+import com.example.android_launcher.utils.dateFormatOptions
 import com.example.android_launcher.utils.formatIsoTimeToFriendly
+import com.example.android_launcher.utils.timeFormatOptions
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
-fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel = koinViewModel(), viewModel: SettingsViewModel = koinViewModel(), changeTheme: (String) -> Unit, navigateToBlockingAppPage:(App)->Unit, navigateHome:()->Unit) {
+fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel = koinViewModel(), viewModel: SettingsViewModel = koinViewModel(),  navigateToBlockingAppPage:(App)->Unit, navigateHome:()->Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val sharedRef = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
-    val isFocusMode = sharedRef.getBoolean("IS_FOCUS_MODE",false)
+    val localManagerData by sharedViewModel.localManagerData.collectAsStateWithLifecycle()
 
-    val isOpen = remember { mutableStateOf(false) }
-    val themeOption = remember { mutableStateOf("") }
-    val timeFormat = remember { mutableStateOf("") }
+    val lifeCycleOwner = LocalLifecycleOwner.current
 
+    var isAccessibilityEnabled by remember {
+        mutableStateOf(
+            value=isAccessibilityServiceEnabled(context, service= MyAccessibilityService::class.java)
+        )
+    }
+    DisposableEffect(key1 = lifeCycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if(event == Lifecycle.Event.ON_RESUME) {
+                isAccessibilityEnabled = isAccessibilityServiceEnabled(context, service = MyAccessibilityService::class.java)
+            }
+        }
+        lifeCycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifeCycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     val hiddenApps = sharedViewModel.hiddenApps.collectAsState().value
     LaunchedEffect(Unit) {
         sharedViewModel.getHiddenApps()
-        val isOpenKeyboard = sharedRef.getBoolean("IS_OPEN_KEYBOARD", false)
-        val themeOpt = sharedRef.getString("THEME", "SYSTEM")
-        val tmFmt = sharedRef.getString("TIME_FORMAT", "24hr")
-        themeOption.value = themeOpt.toString()
-        isOpen.value = isOpenKeyboard
-        timeFormat.value = tmFmt.toString()
     }
 
     val user = Firebase.auth.currentUser
@@ -152,11 +174,10 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                             containerColor = MaterialTheme.colorScheme.onBackground,
                         )
                     ) {
-                        Text("Sign Up / Login")
+                        Text(text = "Sign Up / Login")
                     }
                 }
             }
-
             Spacer(Modifier.height(16.dp))
             HorizontalDivider()
         }
@@ -171,7 +192,7 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
             )
             Column(Modifier.fillMaxWidth()) {
                 if (user != null) {
-                    AccordionItem(title = "Edit Profile") {
+                    AccordionItem(title = "Profile") {
                         Text(
                             text = user.displayName.toString(),
                             modifier = Modifier.padding(horizontal = 20.dp)
@@ -180,13 +201,15 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                 }
                 AccordionItem(title = "Theme") {
                     RadioButtonSingleSelection(
-                        setItem = themeOption.value,
+                        setItem = localManagerData.displaySettings.theme,
                         onOptionClicked = { opt ->
-                            changeTheme(opt)
                             scope.launch {
-                                with(sharedRef.edit()) {
-                                    putString("THEME", opt)
-                                    apply()
+                                context.dataStore.updateData {
+                                    it.copy(
+                                        displaySettings = it.displaySettings.copy(
+                                            theme = opt,
+                                        )
+                                    )
                                 }
                             }
                         },
@@ -218,36 +241,90 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
 
                 AccordionItem("Time Format") {
                     RadioButtonSingleSelection(
-                        setItem = timeFormat.value,
+                        setItem = localManagerData.displaySettings.timeFormat ,
                         onOptionClicked = { opt ->
                             scope.launch {
-                                with(sharedRef.edit()) {
-                                    putString("TIME_FORMAT", opt)
-                                    apply()
+
+                                context.dataStore.updateData {
+                                    it.copy(
+                                        displaySettings = it.displaySettings.copy(
+                                            timeFormat = opt,
+                                        )
+                                    )
                                 }
                             }
                         },
-                        items = listOf(
-                            ItemProps("12hr") {
-                                Text("12 hr format", Modifier.padding(10.dp))
-                            },
-                            ItemProps("24hr") {
-                                Text("24 hr format", Modifier.padding(10.dp))
-                            }
-                        )
+                        items =timeFormatOptions.entries.map { (key,value)->
+                            ItemProps(
+                                title= key,
+                                children = {
+                                    Text(text=value,Modifier.padding(10.dp))
+                                }
+                            )
+                        }
                     )
                 }
 
+                AccordionItem("Date Format") {
+                    RadioButtonSingleSelection(
+                        setItem = localManagerData.displaySettings.dateFormat,
+                        onOptionClicked = { opt ->
+                            scope.launch {
+                                context.dataStore.updateData {
+                                    it.copy(
+                                        displaySettings = it.displaySettings.copy(
+                                            dateFormat = opt,
+                                        )
+                                    )
+                                }
+                            }
+                        },
+                        items = dateFormatOptions.entries.map { (key,value)->
+                            ItemProps(
+                                title= key,
+                                children = {
+                                    Text(text=value,Modifier.padding(10.dp))
+                                }
+                            )
+                        }
+                    )
+                }
+                AccordionItem(title="Choose font") {
+                    RadioButtonSingleSelection(
+                        setItem = localManagerData.displaySettings.currentFont.name,
+                        onOptionClicked = { opt ->
+                            scope.launch {
+                                context.dataStore.updateData { prefs->
+                                    prefs.copy(
+                                        displaySettings = prefs.displaySettings.copy(
+                                            currentFont = AppFonts.valueOf(value=opt),
+                                        )
+                                    )
+                                }
+                            }
+                        },
+                        items = appFonts.entries.map { (key,value)->
+                            ItemProps(
+                                title= key.toString(),
+                                children = {
+                                    Text(text=value,Modifier.padding(10.dp))
+                                }
+                            )
+                        }
+                    )
+                }
                 SwitchItem(
                     title = "Automatically Open Keyboard",
-                    checked = isOpen.value,
+                    checked = localManagerData.displaySettings.autoOpenKeyboard,
                     handleSwitchToggled = { checked ->
                         scope.launch {
-                            with(sharedRef.edit()) {
-                                putBoolean("IS_OPEN_KEYBOARD", checked)
-                                apply()
+                            context.dataStore.updateData { prefs->
+                                prefs.copy(
+                                    displaySettings = prefs.displaySettings.copy(
+                                        autoOpenKeyboard = checked,
+                                    )
+                                )
                             }
-                            isOpen.value = checked
                         }
                     }
                 )
@@ -290,7 +367,9 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                     Column(Modifier) {
                         hiddenApps.forEach { ap ->
                             AppItem(
-                                onClick = { sharedViewModel.launchApp(ap) },
+                                onClick = {
+                                    sharedViewModel.launchApp(app=ap)
+                                },
                                 ap = ap,
                                 onHideApp = {
                                     scope.launch {
@@ -354,7 +433,45 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
 //                }
 //            }
 //        }
+        item{
+            AccordionItem(title="Precision Mode") {
+                Column(Modifier.padding(horizontal=10.dp)){
+                    Text(text="By enabling precision mode, you will be able to monitor apps even more and also block websites.")
+                    SwitchItem(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        title = if(isAccessibilityEnabled) "Disable" else "Enable",
+                        checked = isAccessibilityEnabled,
+                        handleSwitchToggled = {
+                            val precisionIntent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            Toast.makeText(context, "Please enable Accessibility permission", Toast.LENGTH_LONG).show()
+                            context.startActivity(precisionIntent)
+                            isAccessibilityEnabled = isAccessibilityServiceEnabled(context, service=MyAccessibilityService::class.java)
 
+                        }
+                    )
+                }
+            }
+        }
+        item{
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 10.dp).clickable { viewModel.handleNavigateToSettings() }
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 7.dp, bottom = 7.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Device Settings",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+                HorizontalDivider()
+            }
+        }
         item {
             AccordionItem(title="Exit Planara Launcher") {
                 Column {
@@ -385,29 +502,6 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                 }
             }
         }
-        item {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp)
-                    .clickable {
-                        viewModel.handleNavigateToSettings()
-                    }
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 7.dp, bottom = 7.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Device Settings",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                }
-            }
-        }
-
     }
 }
 
@@ -480,7 +574,7 @@ fun RadioButtonSingleSelection(modifier: Modifier = Modifier,items: List<ItemPro
     val (selectedOption, onOptionSelected) = remember { mutableStateOf(setItem) }
 
     Column(modifier=modifier.selectableGroup()) {
-        items.forEach { it->
+        items.forEach {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -503,4 +597,28 @@ fun RadioButtonSingleSelection(modifier: Modifier = Modifier,items: List<ItemPro
             }
         }
     }
+}
+fun isAccessibilityServiceEnabled(
+    context: Context,
+    service: Class<out AccessibilityService>
+): Boolean {
+    val expectedComponentName = ComponentName(context, service)
+
+    val enabledServices = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    )
+
+    val colonSplitter = TextUtils.SimpleStringSplitter(':')
+    colonSplitter.setString(enabledServices ?: "")
+
+    while (colonSplitter.hasNext()) {
+        val componentNameString = colonSplitter.next()
+        val enabledComponentName = ComponentName.unflattenFromString(componentNameString)
+        if (enabledComponentName != null && enabledComponentName == expectedComponentName) {
+            return true
+        }
+    }
+
+    return false
 }
