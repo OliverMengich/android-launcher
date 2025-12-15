@@ -28,10 +28,14 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.datastore.core.DataStore
+import androidx.datastore.dataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.android_launcher.data.LocalManagerImpl
+import com.example.android_launcher.domain.manager.LocalManager
 import com.example.android_launcher.presentation.screens.home.HomeNavigator
 import com.example.android_launcher.receivers.BatteryReceiver
 import com.example.android_launcher.receivers.PackagesBroadCastReceiver
@@ -44,7 +48,8 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 @Serializable data object HomeNavigation:Route
 @Serializable data object Onboarding:Route
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+//val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+val Context.dataStore by dataStore("app-settings.json", LocalManagerImpl)
 val IS_LOGGED_IN_KEY = booleanPreferencesKey("is_logged_in")
 val OPEN_KEYBOARD = booleanPreferencesKey("open_keyboard_automatically")
 val LOGGED_IN_USER_NAME = stringPreferencesKey(name = "user_name")
@@ -73,43 +78,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val intent = Intent(this, AppMonitorService::class.java)
         ContextCompat.startForegroundService(this, intent)
-        val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
+
         enableImmersiveMode()
         setContent {
-            val isDarkMode = remember { mutableStateOf(false) }
-            val x = isSystemInDarkTheme()
-            LaunchedEffect(Unit) {
-                val themeOpt = sharedRef.getString("THEME", "SYSTEM")
-                isDarkMode.value = if(themeOpt.toString()=="SYSTEM"){
-                    x
-                }else if(themeOpt.toString()=="Dark"){
-                    true
-                }else{
-                    false
-                }
+            val localManagerData = dataStore.data.collectAsStateWithLifecycle(initialValue = LocalManager()).value
+            val systemDark = isSystemInDarkTheme()
+            val isDarkMode = when (localManagerData.displaySettings.theme) {
+                "SYSTEM" -> systemDark
+                "Dark" -> true
+                else -> false
             }
-            AndroidlauncherTheme(darkTheme = isDarkMode.value) {
+
+            AndroidlauncherTheme(darkTheme = isDarkMode,defaultFont = localManagerData.displaySettings.currentFont) {
                 Scaffold(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.background)) { padding->
-                    HomeNavigator(
-                        padding=padding,
-                        changeTheme = { opt->
-                            isDarkMode.value = when (opt) {
-                                "SYSTEM" -> {
-                                    x
-                                }
-                                "Dark" -> {
-                                    true
-                                }
-                                else -> {
-                                    false
-                                }
-                            }
-                            sharedRef.edit(commit = true) {
-                                putString("THEME", opt)
-                                apply()
-                            }
-                        }
-                    )
+                    HomeNavigator(padding=padding)
                 }
             }
         }
