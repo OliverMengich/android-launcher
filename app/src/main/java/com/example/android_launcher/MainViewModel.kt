@@ -28,9 +28,8 @@ class MainViewModel(private val context: Context): ViewModel() {
     init {
 //        _isSetupComplete.value = true
         viewModelScope.launch {
-            val isLoggedIn =context.dataStore.data.map {
-                it[IS_LOGGED_IN_KEY] ?: false
-            }.first()
+
+            val isLoggedIn = context.dataStore.data.map{it.isLoggedIn}.first()
             Log.d("start_screen","is Logged is=$isLoggedIn")
             _isSetupComplete.value = true
             startDestination = if (isLoggedIn){
