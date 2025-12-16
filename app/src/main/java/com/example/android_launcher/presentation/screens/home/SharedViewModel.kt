@@ -137,8 +137,6 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
             }else {
                  val intent = pm?.getLaunchIntentForPackage(app.packageName).also {
                      it?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                     it?.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-                     it?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                  }
                  if (intent != null) {
                      context.startActivity(intent)
