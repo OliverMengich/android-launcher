@@ -168,9 +168,8 @@ fun SignInSignUp(navigateToNextPage:()-> Unit,navigateToPrev: ()->Unit,loginWith
                                 isLoading = false
                                 navigateToNextPage()
                                 scope.launch {
-                                    context.dataStore.edit { st ->
-                                        st[IS_LOGGED_IN_KEY] = true
-                                    }
+                                    context.dataStore.updateData { it.copy(isLoggedIn = true) }
+
                                 }
                             },
                             onError = { e->
