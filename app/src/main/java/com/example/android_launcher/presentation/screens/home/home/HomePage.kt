@@ -3,7 +3,9 @@ package com.example.android_launcher.presentation.screens.home.home
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -73,6 +76,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.example.android_launcher.CAMERA_APP_PACKAGE
 import com.example.android_launcher.CLOCK_APP_PACKAGE
@@ -81,52 +85,65 @@ import com.example.android_launcher.PHONE_APP_PACKAGE
 import com.example.android_launcher.dataStore
 import com.example.android_launcher.domain.models.Event
 import com.example.android_launcher.presentation.screens.home.home.calendar.CalendarViewModel
+import com.example.android_launcher.presentation.screens.home.home.calendar.NewEventPageEvent
+import com.example.android_launcher.utils.formatIsoTimeToFriendly
+import com.example.android_launcher.utils.formatLocalDateToRequiredFormat
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 
 
 @Composable()
-fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: CalendarViewModel = koinViewModel(), navigateToSettingsPage: ()-> Unit){
+fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: CalendarViewModel = koinViewModel(), navigateToSettingsPage: ()-> Unit,isFocusModeActive: Boolean = false){
 
     val pinnedApps = viewModel.pinnedApps.collectAsState().value
+
     val context = LocalContext.current
     val pm = context.packageManager
-    val sharedRef = context.getSharedPreferences("settings_value", Context.MODE_PRIVATE)
-    val timePattern = remember { mutableStateOf("") }
+    val localManagerData by viewModel.localManagerData.collectAsStateWithLifecycle()
     var currentTime by remember { mutableStateOf("") }
     var todayDate by remember { mutableStateOf("") }
     var currentHour by remember { mutableStateOf("") }
 
+
     val locale = Locale.getDefault()
     val scope = rememberCoroutineScope()
-    val formatter = SimpleDateFormat("hh:00 a", Locale.getDefault())
+    BackHandler {
 
-    LaunchedEffect(Unit) {
-        val tmFmt = sharedRef.getString("TIME_FORMAT", "24hr")
-        timePattern.value = if(tmFmt.toString()=="12hr"){
-            "hh:mm a"
-        }else{
-            "HH:mm"
-        }
-        while (true){
+    }
+
+    val formatter = remember(key1=localManagerData.displaySettings.timeFormat) {
+        val pattern = localManagerData.displaySettings.timeFormat.replace(Regex(":mm(:ss)?"), ":00")
+        SimpleDateFormat(pattern, Locale.getDefault())
+    }
+    val focusModeEndTime = remember(key1=localManagerData.focusMode.isActive){
+        mutableStateOf<String?>(
+            value=if(isFocusModeActive){
+                localManagerData.focusMode.endTime
+            }else null
+        )
+    }
+
+    LaunchedEffect(key1 = Unit,key2 = localManagerData) {
+        val timeFmt = SimpleDateFormat(localManagerData.displaySettings.timeFormat, locale)
+        while(true){
             val calendar = Calendar.getInstance()
             val formattedTime = formatter.format(calendar.time)
             if (currentHour != formattedTime){
                 currentHour = formattedTime
             }
-            val dayOfMonth = calendar.get(Calendar.DAY_OF_MONTH)
-            val dateFmt = SimpleDateFormat("EEEE", locale)
-            val monthFmt = SimpleDateFormat("MMMM", locale)
-            val daySfx = getDaySuffix(dayOfMonth)
 
-            todayDate = "${dateFmt.format(calendar.time)}, ${dayOfMonth}$daySfx ${monthFmt.format(calendar.time)}"
-            val timeFmt = SimpleDateFormat(timePattern.value, locale)
+//            val dayOfMonth = calendar.get(Calendar.DAY_OF_MONTH)
+
+            todayDate = formatLocalDateToRequiredFormat(dateFormat = localManagerData.displaySettings.dateFormat)
+
             currentTime = timeFmt.format(calendar.time)
             delay(1000L)
         }
@@ -134,10 +151,8 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
     val timeParts = currentTime.split(" ")
     fun openAlarmSettings(){
         scope.launch {
-            val clockApp=context.dataStore.data.map { st ->
-                st[CLOCK_APP_PACKAGE]
-            }.first()
-            if (clockApp!=null){
+            val clockApp=localManagerData.clockApp
+            if (clockApp.isNotEmpty()){
                 val intent = pm?.getLaunchIntentForPackage(clockApp)
                 if (intent != null) {
                     context.startActivity(intent)
@@ -150,22 +165,25 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
         }
     }
     val batteryInfo = viewModel.batteryInfo.collectAsState().value
+    val refetchFlowApps = viewModel.refetchAppsFlow.collectAsState().value
+
+    val newEventPageEvent by calendarViewModel.newPageEvent.collectAsState(initial = NewEventPageEvent.Idle)
 
     val user = Firebase.auth.currentUser
-    val todayEvents = calendarViewModel.todayEvents.collectAsState().value
-    val now = LocalDateTime.now()
-    var hourEvents by remember{
-        mutableStateOf<List<Event>>(emptyList())
-    }
-    LaunchedEffect(todayEvents, currentHour) {
-        val nowCalendar = Calendar.getInstance()
-        hourEvents = todayEvents.filter { ev ->
-            val eventCalendar = Calendar.getInstance().apply {
-                timeInMillis = ev.startTime as Long
+    val todayEvents by calendarViewModel.todayEvents.collectAsStateWithLifecycle()
+    val hourEvents = remember(key1=todayEvents,key2=currentHour) {
+        val now = LocalTime.now()
+        derivedStateOf {
+            todayEvents.filter { ev ->
+                (ev.startTime.hour == now.hour) || (ev.endTime.hour <= now.hour)
             }
-            eventCalendar.get(Calendar.YEAR) == nowCalendar.get(Calendar.YEAR) &&
-                    eventCalendar.get(Calendar.DAY_OF_YEAR) == nowCalendar.get(Calendar.DAY_OF_YEAR) &&
-                    eventCalendar.get(Calendar.HOUR_OF_DAY) == nowCalendar.get(Calendar.HOUR_OF_DAY)
+        }
+    }
+    LaunchedEffect(key1 = newEventPageEvent) {
+        if (newEventPageEvent is NewEventPageEvent.ShowSuccess) {
+            Log.d("Calendar", "Success")
+
+//            calendarViewModel.getTodayEvents()
         }
     }
 
@@ -178,45 +196,47 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Home", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (user !=null) {
+                    if(!isFocusModeActive){
+                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (user !=null) {
+                                OutlinedIconButton(
+                                    modifier = Modifier.padding(0.dp),
+                                    onClick = {
+                                        navigateToSettingsPage()
+                                    },
+                                    content = {
+                                        if(user.photoUrl!=null){
+                                            AsyncImage(
+                                                model = user.photoUrl,
+                                                contentDescription = "User profile photo",
+                                                modifier = Modifier
+                                                    .size(30.dp)
+                                                    .clip(CircleShape)
+                                                    .border(width = 1.dp, color = Color.Transparent, shape = CircleShape)
+                                            )
+                                        }else{
+                                            Box(modifier = Modifier.size(20.dp).background(Color(0xff494949)), contentAlignment = Alignment.Center){
+                                                Text(user.displayName.toString().take(2),color=Color.White)
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                             OutlinedIconButton(
                                 modifier = Modifier.padding(0.dp),
                                 onClick = {
                                     navigateToSettingsPage()
                                 },
-                                content = {
-                                    if(user.photoUrl!=null){
-                                        AsyncImage(
-                                            model = user.photoUrl,
-                                            contentDescription = "User profile photo",
-                                            modifier = Modifier
-                                                .size(30.dp)
-                                                .clip(CircleShape)
-                                                .border(width = 1.dp, color = Color.Transparent, shape = CircleShape)
-                                        )
-                                    }else{
-                                        Box(modifier = Modifier.size(20.dp).background(Color(0xff494949)), contentAlignment = Alignment.Center){
-                                            Text(user.displayName.toString().take(2),color=Color.White)
-                                        }
-                                    }
+                                content={
+                                    Icon(
+                                        imageVector=Icons.Default.Settings,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onBackground,
+                                    )
                                 }
                             )
                         }
-                        OutlinedIconButton(
-                            modifier = Modifier.padding(0.dp),
-                            onClick = {
-                                navigateToSettingsPage()
-                            },
-                            content={
-                                Icon(
-                                    imageVector=Icons.Default.Settings,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.onBackground,
-                                )
-                            }
-                        )
                     }
                 }
                 Box(modifier = Modifier.height(250.dp).padding(top = 30.dp)) {
@@ -235,7 +255,6 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                                         append(amPm)
                                     }
                                 }
-
                             },
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 80.sp
@@ -245,7 +264,7 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                             if (batteryInfo?.isCharging==true){
                                 Text("Charging")
                             }
-                            Text("${batteryInfo?.batteryLevel?:0}%")
+                            Text(text="${batteryInfo?.batteryLevel?:0}%",color= MaterialTheme.colorScheme.onBackground)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(modifier = Modifier.width(20.dp).height(12.dp)
                                     .border(
@@ -254,40 +273,17 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                                         color =  MaterialTheme.colorScheme.onBackground
                                     )
                                 ) {
-//                                    if (batteryInfo?.isCharging==true && batteryInfo.batteryLevel < 20) {
-//                                        Image(
-//                                            painter = painterResource(id = R.drawable.flash),
-//                                            contentDescription = "flash charging",
-//                                            modifier = Modifier
-//                                                .fillMaxHeight()
-//                                                .fillMaxWidth(.95f)
-//                                                .rotate(90f)
-//                                        )
-//                                    }
                                     Box(
                                         modifier = Modifier
                                             .fillMaxHeight()
                                             .fillMaxWidth(
-                                                (batteryInfo?.batteryLevel?.toFloat())?.div(100.00)
-                                                    ?.toFloat() ?: 0f
+                                                fraction = (batteryInfo?.batteryLevel?.toFloat())?.div(100.00) ?.toFloat() ?: 0f
                                             )
                                             .background(
-                                                shape = RoundedCornerShape(2.dp),
-                                                color = if(batteryInfo?.isCharging==true) Color(0xff142CFF) else if (isSystemInDarkTheme()) Color.White else Color(
-                                                    0xffFFAA6E
-                                                )
+                                                shape = RoundedCornerShape(size=2.dp),
+                                                color = if(batteryInfo?.isCharging==true) Color(0xff142CFF) else MaterialTheme.colorScheme.onBackground
                                             )
                                     ) {
-//                                        if (batteryInfo?.isCharging==true) {
-//                                            Image(
-//                                                painter = painterResource(id = R.drawable.flash),
-//                                                contentDescription = "flash charging",
-//                                                modifier = Modifier
-//                                                    .fillMaxHeight()
-//                                                    .fillMaxWidth(.95f)
-//                                                    .rotate(90f)
-//                                            )
-//                                        }
                                     }
                                 }
                                 Box(
@@ -298,157 +294,141 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                                         )
                                 )
                                 if (batteryInfo?.isCharging==true) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.flash),
-                                        contentDescription = "flash charging",
-                                        modifier = Modifier
-                                            .height(12.dp)
-                                            .padding(horizontal=5.dp)
+                                    Icon(
+                                        painter = painterResource(id=R.drawable.flash),
+                                        contentDescription="flash charging",
+                                        tint=MaterialTheme.colorScheme.onBackground,
+                                        modifier = Modifier.height(12.dp).padding(horizontal=5.dp)
                                     )
                                 }
                             }
                             if (batteryInfo!=null && !batteryInfo.isCharging && batteryInfo.batteryLevel < 20){
                                 Text("Battery Low")
                             }
-                            if (batteryInfo!=null && batteryInfo.isCharging && batteryInfo.batteryLevel == 100){
-                                Text("Battery full, unplug charger.")
-                            }
+                        }
+                        if (batteryInfo!=null && batteryInfo.isCharging && batteryInfo.batteryLevel == 100){
+                            Text("Battery full, unplug charger.")
                         }
                     }
                 }
             }
-            Column(modifier = Modifier.padding(10.dp)) {
-                Column(modifier = Modifier
-                    .fillMaxWidth()
-                    .border(width = .5.dp, color = Color.Gray, shape = RoundedCornerShape(16.dp))
-                    .padding(10.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(
-                                painter = painterResource(id = R.drawable.calendar),
-                                contentDescription = "calendar",
-                                modifier = Modifier
-                                    .height(20.dp)
-                                    .width(20.dp)
-                            )
-                            Text("Calendar", fontSize = 20.sp, modifier = Modifier.padding(10.dp))
-                        }
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_down),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                    CalendarItem(
-                        title = currentHour,
-                        events = hourEvents
-                    )
+            if (isFocusModeActive){
+                Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,){
+                    Text("Focus Mode is active until ${formatIsoTimeToFriendly(input=focusModeEndTime.value)} ")
                 }
-                LazyColumn {
-                    items(pinnedApps){ap->
-                        AppItem(
-                            onClick = {
-                                viewModel.launchApp(ap)
-                            },
-                            isInHomeScreen = true,
-                            ap = ap,
-                            onHideApp = {
-                                scope.launch {
-                                    viewModel.hideUnhideAppFc(ap,0)
-                                }
-                            },
-                            onUninstallApp = {
-                                val intent = Intent(Intent.ACTION_DELETE)
-                                intent.data = "package:${ap.packageName}".toUri()
-                                context.startActivity(intent)
-                            },
-                            onBlockApp = {
-                                scope.launch {
-                                    viewModel.blockUnblockAppFc(ap,1)
-                                }
-                            },
-                            onPinApp = {
-                                scope.launch {
-                                    viewModel.pinUnpinApp(ap,0)
-                                }
-                            },
-                        )
+            }else{
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth().border(width = .5.dp, color = Color.Gray, shape = RoundedCornerShape(16.dp)).padding(10.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.calendar),
+                                    contentDescription = "calendar",
+                                    modifier = Modifier.height(20.dp).width(20.dp)
+                                )
+                                Text("Calendar", fontSize = 20.sp, modifier = Modifier.padding(10.dp))
+                            }
+                        }
+                        CalendarItem(timeFormat=localManagerData.displaySettings.timeFormat, title = currentHour, events = hourEvents.value)
+                    }
+                    LazyColumn {
+                        items(pinnedApps){ap->
+                            AppItem(
+                                onClick = {
+                                    viewModel.launchApp(ap)
+                                },
+                                isInHomeScreen = true,
+                                ap = ap,
+                                onHideApp = {
+
+                                    scope.launch {
+                                        viewModel.hideUnhideAppFc(ap,0)
+                                    }
+                                },
+                                onUninstallApp = {
+                                    val intent = Intent(Intent.ACTION_DELETE)
+                                    intent.data = "package:${ap.packageName}".toUri()
+                                    context.startActivity(intent)
+                                },
+                                onBlockApp = {
+                                    scope.launch {
+                                        viewModel.blockUnblockAppFc(ap,1)
+                                    }
+                                },
+                                onPinApp = {
+                                    scope.launch {
+                                        viewModel.pinUnpinApp(ap,0)
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
         }
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, end = 10.dp, start = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = {
-                    val intent = Intent(Intent.ACTION_DIAL)
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    try {
-                        context.startActivity(intent)
-                    } catch (e: ActivityNotFoundException) {
-                        Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
-                    }
-                }) {
-                    Icon(
-                        imageVector=Icons.Default.Phone,
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(25.dp).clickable{
-                            scope.launch {
-                                val phoneApp=context.dataStore.data.map { st ->
-                                    st[PHONE_APP_PACKAGE]
-                                }.first()
-                                if (phoneApp!=null){
-                                    val intent = pm?.getLaunchIntentForPackage(phoneApp)
-                                    if (intent != null) {
-                                        context.startActivity(intent)
-                                    } else {
-                                        Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
-                                    }
-                                }else{
-                                    Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        contentDescription = "Phone"
-                    )
-                }
-                IconButton(onClick = {
-                    scope.launch {
-                        val cameraApp=context.dataStore.data.map { st ->
-                            st[CAMERA_APP_PACKAGE]
-                        }.first()
-                        if (cameraApp!=null){
-                            val intent = pm?.getLaunchIntentForPackage(cameraApp)
-                            if (intent != null) {
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
-                            }
-                        }else{
+        if (!isFocusModeActive){
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, end = 10.dp, start = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_DIAL)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: ActivityNotFoundException) {
                             Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
                         }
+                    }) {
+                        Icon(
+                            imageVector=Icons.Default.Phone,
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(25.dp).clickable{
+                                scope.launch {
+                                    val phoneApp = localManagerData.phoneApp
+
+                                    if (phoneApp.isNotEmpty()){
+                                        val intent = pm?.getLaunchIntentForPackage(phoneApp)
+                                        if (intent != null) {
+                                            context.startActivity(intent)
+                                        } else {
+                                            Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }else{
+                                        Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            contentDescription = "Phone"
+                        )
                     }
-                }) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_camera),
-                        modifier = Modifier.size(25.dp),
-                        contentDescription = "Camera",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
+                    IconButton(onClick = {
+                        scope.launch {
+                            val cameraApp=localManagerData.cameraApp
+                            if (cameraApp.isNotEmpty()){
+                                val intent = pm?.getLaunchIntentForPackage(cameraApp)
+                                if (intent != null) {
+                                    context.startActivity(intent)
+                                } else {
+                                    Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
+                                }
+                            }else{
+                                Toast.makeText(context, "No camera app found", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_camera),
+                            modifier = Modifier.size(25.dp),
+                            contentDescription = "Camera",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-private fun getDaySuffix(day: Int): String {
+fun getDaySuffix(day: Int): String {
     if (day in 11..13) {
         return "th"
     }
