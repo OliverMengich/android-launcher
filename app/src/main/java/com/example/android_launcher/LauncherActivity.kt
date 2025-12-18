@@ -37,21 +37,6 @@ class LauncherActivity: ComponentActivity() {
             startActivity(startIntent)
             finish()
         }
-//        val sharedRef = getSharedPreferences("settings_value", Context.MODE_PRIVATE)
-//        val isLoggedInUser = sharedRef.getBoolean("IS_AUTHENTICATED",false)
-//        Log.d("start_intent"," is user logged in=$isLoggedInUser")
-//        val startIntent = if (isLoggedInUser){
-//            Intent(this, MainActivity::class.java).apply {
-//                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//            }
-//        }else{
-//            Intent(this, OnboardingActivity::class.java).apply {
-//                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//            }
-//        }
-//        Log.d("start_intent","start intent is $startIntent")
-//        startActivity(startIntent)
-//        finish()
     }
     private fun enableImmersiveMode(){
         val windowInsetsController = WindowCompat.getInsetsController(window,window.decorView)
