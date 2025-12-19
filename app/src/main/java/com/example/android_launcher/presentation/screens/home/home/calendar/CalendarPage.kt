@@ -1,5 +1,6 @@
 package com.example.android_launcher.presentation.screens.home.home.calendar
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -36,41 +36,47 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.android_launcher.R
 import com.example.android_launcher.domain.models.Event
+import com.example.android_launcher.domain.models.EventCategory
+import com.example.android_launcher.domain.models.EventRecurringType
+import com.example.android_launcher.domain.models.Priority
+import com.example.android_launcher.presentation.components.EventModalWindow
+import com.example.android_launcher.presentation.screens.home.SharedViewModel
+import com.example.android_launcher.utils.formatGivenDateToRequiredFormat
+import com.example.android_launcher.utils.formatHourPattern
+import com.example.android_launcher.utils.formatLocalDateToRequiredFormat
+import com.example.android_launcher.utils.formatTimeToRequiredFormat
+import com.example.android_launcher.utils.priorityColors
 import org.koin.androidx.compose.koinViewModel
-import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Date
-import java.util.Locale
 
 data class EventsOrder(
     val id: Int,
@@ -80,7 +86,12 @@ data class EventsOrder(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEvent:()->Unit,){
+fun CalendarPage(
+    viewModel: CalendarViewModel = koinViewModel(),
+    sharedViewModel: SharedViewModel = koinViewModel(),
+    navigateToHome:()->Unit,
+    navigateToNewEvent:()->Unit
+){
     var showDatePicker by remember { mutableStateOf(false) }
 
     val datePickerState = rememberDatePickerState()
@@ -88,42 +99,44 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
     var startDate by remember {
         mutableStateOf<LocalDate>(LocalDate.now())
     }
-    LaunchedEffect(Unit, startDate) {
-        viewModel.generateDays(dt=startDate)
+    val context= LocalContext.current
+    val localManagerData by sharedViewModel.localManagerData.collectAsStateWithLifecycle()
+    val tmFmt by remember(localManagerData) {
+        val strF = localManagerData.displaySettings.timeFormat.replace(Regex(":(mm|ss)(:ss)?"), ":00")
+        mutableStateOf(strF)
     }
-
-//    val hourFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    BackHandler {
+        navigateToHome()
+    }
+    LaunchedEffect(key1=Unit, key2=startDate) {
+        viewModel.generateDays(dt=startDate)
+        viewModel.getDateEvents(startDate)
+    }
 
     var selectedEvent by remember{
         mutableStateOf<Event?>(null)
     }
     val weeks = viewModel.dates.collectAsState().value
-    val hourFormat = remember { SimpleDateFormat("h:00 a", Locale.getDefault()) }
-    var eventsList by remember { mutableStateOf<List<EventsOrder>>(emptyList()) }
-    val todayEvents = viewModel.todayEvents.collectAsState().value
-
-    LaunchedEffect(todayEvents) {
-        eventsList = todayEvents
-            .groupBy { ev ->
-                LocalDateTime.ofInstant(
-                    Instant.ofEpochMilli(ev.startTime as Long),
-                    ZoneId.systemDefault()
-                ).hour
-            }
-            .map { (hourId, eventsInHour) ->
-                val firstEventMillis = eventsInHour.first().startTime as Long
-                val hourValue = hourFormat.format(Date(firstEventMillis))
-                    .lowercase(Locale.getDefault())
-                EventsOrder(
-                    id = hourId,
-                    title = hourValue,
-                    events = eventsInHour
-                )
-            }
-            .sortedBy { it.id }
+    val dateEvents by viewModel.dateEvents.collectAsStateWithLifecycle()
+    val eventsList by remember(dateEvents) {
+        derivedStateOf {
+            dateEvents
+                .groupBy { ev -> ev.startTime.hour }
+                .map { (hourId, eventsInHour) ->
+                    val firstEventTime = eventsInHour.first().startTime
+                    val hourValue = formatHourPattern(tmFmt,firstEventTime.hour)
+                    EventsOrder(id = hourId, title = hourValue, events = eventsInHour)
+                }
+                .sortedBy { it.id }
+        }
     }
-    val pagerState = rememberPagerState(pageCount = { weeks.size })
-    val activeDateFormatter = DateTimeFormatter.ofPattern("MMMM dd, yyyy")
+
+    val categoryCounts by remember(key1=dateEvents) {
+        derivedStateOf {
+            dateEvents.groupingBy { it.eventCategory }.eachCount()
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize())  {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 20.dp, bottom = 0.dp)) {
             Row(
@@ -131,14 +144,14 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Calendar", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
+                Text(text="Calendar", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedIconButton(
                         modifier = Modifier.padding(0.dp),
                         onClick = navigateToNewEvent,
                         content = {
                             Icon(
-                                Icons.Default.Add,
+                                imageVector=Icons.Default.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.onBackground,
@@ -162,13 +175,19 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
             }
         }
         Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp, end = 15.dp, start = 15.dp), horizontalAlignment = Alignment.Start) {
-            Text("3 Tasks today, 2 Meetings", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-            Text(text= activeDateFormatter.format(startDate), fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
+            Text(
+                text= categoryCounts.entries.joinToString(", ") {(category,count)->
+                    "$count ${category.name.lowercase().replaceFirstChar { it.titlecase() }}"
+                },
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp
+            )
+            Text(text = formatGivenDateToRequiredFormat(givenDate = startDate, dateFormat = localManagerData.displaySettings.dateFormat), fontWeight = FontWeight.Bold, fontSize = 20.sp)
             WeekPager(
                 Modifier.padding(vertical = 10.dp),
                 weeks = weeks,
-                startDate=startDate,
-                onDateItemClick = { dt->
+                startDate = startDate,
+                onDateItemClick = { dt ->
                     startDate=dt
                 }
             )
@@ -177,8 +196,8 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
             }
             LazyColumn(Modifier.fillMaxWidth(),state = listState) {
                 items(eventsList){e->
-                    Row{
-                        Text(text=e.title, Modifier.fillMaxWidth(.17f))
+                    Row(Modifier.padding(horizontal=4.dp)){
+                        Text(text=e.title)
                         Column(Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically){
                                 Box(modifier = Modifier.width(20.dp).height(20.dp).border(shape = CircleShape, border = BorderStroke(2.dp, color= MaterialTheme.colorScheme.onBackground))){}
@@ -191,10 +210,14 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(e.events){item->
-                                    Column(Modifier.background(Color.Red, shape = RoundedCornerShape(10.dp)).padding(horizontal = 5.dp, vertical = 5.dp).clickable{selectedEvent=item}){
-                                        Text( item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text("09:45am-10:00am")
-                                        Text("Skype")
+                                    Column(Modifier.background(color= priorityColors[item.priority]!!, shape = RoundedCornerShape(10.dp)).padding(horizontal = 5.dp, vertical = 5.dp).clickable{selectedEvent=item}){
+                                        Text(text=item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        localManagerData.displaySettings.timeFormat.let { timeFormatItem->
+                                            Text(
+                                                text="${item.startTime.formatTimeToRequiredFormat(pattern = timeFormatItem)} - ${item.endTime.formatTimeToRequiredFormat(pattern = timeFormatItem)} "
+                                            )
+                                        }
+                                        Text(text=item.location.toString(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -205,9 +228,37 @@ fun CalendarPage(viewModel: CalendarViewModel = koinViewModel(),navigateToNewEve
         }
 
         if (selectedEvent !=null) {
-            ModalBottomSheet(onDismissRequest = { selectedEvent=null },Modifier.heightIn(min=400.dp),sheetState = rememberModalBottomSheetState(),) {
-                Text("show bottom sheet.")
-            }
+            EventModalWindow(
+                onDismissRequest = { selectedEvent=null },
+                selectedEvent=selectedEvent!!,
+                updateEventProps = { nm,vl->
+                    when(nm){
+                        "title"->selectedEvent=selectedEvent!!.copy(title = vl as String)
+                        "location"->selectedEvent=selectedEvent!!.copy(location = vl as String)
+                        "description"->selectedEvent=selectedEvent!!.copy(description = vl as String)
+                        "eventCategory"->selectedEvent=selectedEvent!!.copy(eventCategory = vl as EventCategory)
+                        "startTime"->selectedEvent=selectedEvent!!.copy(startTime = vl as LocalTime)
+                        "endTime"->selectedEvent=selectedEvent!!.copy(endTime = vl as LocalTime)
+                        "endDate"->selectedEvent=selectedEvent!!.copy(endDate = vl as String)
+                        "isAllDay"->selectedEvent=selectedEvent!!.copy(recurringType = vl as EventRecurringType)
+                        "dates" -> selectedEvent=selectedEvent!!.copy(dates = (vl as Set<LocalDate>).map { it.toString() }.toList())
+                        "selectedPriority" -> selectedEvent=selectedEvent!!.copy(priority = vl as Priority)
+                        "notifyBeforeTime" -> selectedEvent=selectedEvent!!.copy(notifyBeforeTime = vl as Int)
+                        "selectedRecurringType" -> selectedEvent=selectedEvent!!.copy(recurringType = vl as EventRecurringType)
+                    }
+                },
+                tmFmt = tmFmt,
+                onDeletePressed = {
+                    viewModel.deleteEvent(selectedEvent!!.id)
+                    viewModel.getDateEvents(startDate)
+                    selectedEvent=null
+                },
+                onUpdatePressed = {
+                    viewModel.updateEvent(selectedEvent!!)
+                    viewModel.getDateEvents(startDate)
+                    selectedEvent=null
+                }
+            )
         }
         if (showDatePicker) {
             DatePickerDialog(
