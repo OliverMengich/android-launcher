@@ -1,18 +1,13 @@
 package com.example.android_launcher.presentation.screens.home.home.apps
 
-import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,26 +16,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import org.koin.androidx.compose.koinViewModel
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,20 +46,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.flowWithLifecycle
-import com.example.android_launcher.OPEN_KEYBOARD
-import com.example.android_launcher.dataStore
 import com.example.android_launcher.domain.models.App
 import com.example.android_launcher.presentation.components.AppItem
 import com.example.android_launcher.presentation.screens.home.SharedViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,7 +59,6 @@ import java.util.Calendar
 fun AppsPage(viewModel: SharedViewModel = koinViewModel(), navigateToHome:()->Unit, navigateToBlockingAppPage:(App)->Unit,isFocused: Boolean, navigateToBlockedApp:(App)->Unit){
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val localManagerData by viewModel.localManagerData.collectAsStateWithLifecycle()
 
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -105,14 +79,6 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(), navigateToHome:()->Un
         }
     }
     val currentTime = Calendar.getInstance()
-    val timePickerState = rememberTimePickerState(
-        initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
-        initialMinute = currentTime.get(Calendar.MINUTE),
-    )
-    var showTimeDialog by remember{mutableStateOf(false)}
-    var category by remember{mutableStateOf<String?>(null)}
-    var startTime by remember{mutableStateOf<LocalDate?>(null)}
-    var endTime by remember{mutableStateOf<LocalDate?>(null)}
 
     val context = LocalContext.current
 
