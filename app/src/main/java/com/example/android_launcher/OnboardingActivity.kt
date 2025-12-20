@@ -23,6 +23,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.android_launcher.domain.manager.LocalManager
+import com.example.android_launcher.domain.models.AppFonts
 import com.example.android_launcher.presentation.screens.onboarding.OnboardingPage
 import com.example.android_launcher.services.AppMonitorService
 import com.example.android_launcher.ui.theme.AndroidlauncherTheme
@@ -44,7 +47,10 @@ class OnboardingActivity: ComponentActivity() {
         val activePage= intent.getIntExtra("active_page",0)
         Log.d("active_page","active page=$activePage. Is visible=$isVisible")
         setContent {
-            AndroidlauncherTheme {
+            val localManagerData = dataStore.data.collectAsStateWithLifecycle(initialValue = LocalManager()).value
+            AndroidlauncherTheme(
+                defaultFont = localManagerData.displaySettings.currentFont
+            ) {
                 Scaffold(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.background)) { padding->
                     OnboardingPage(
                         finishNavigate = {},
@@ -59,6 +65,7 @@ class OnboardingActivity: ComponentActivity() {
     override fun onPause() {
         Log.d("tag_here", "intent paused")
         super.onPause()
+        isVisible = false
     }
 
     override fun onResume() {
