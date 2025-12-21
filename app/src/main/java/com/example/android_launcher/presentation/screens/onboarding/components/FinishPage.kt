@@ -34,57 +34,63 @@ fun FinishPage(navigateToNextPage:()-> Unit,navigateToPrev: ()->Unit) {
     val context = LocalContext.current
 
     // 1️⃣ Create a permission launcher
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            if (isGranted) {
-                Toast.makeText(context, "Notification permission granted", Toast.LENGTH_SHORT).show()
-                navigateToNextPage()
-            } else {
-                Toast.makeText(context, "Notification permission denied", Toast.LENGTH_SHORT).show()
-                // You can still navigate or show a dialog explaining why it's needed
-                navigateToNextPage()
-            }
-        }
-    )
+//    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+//        contract = ActivityResultContracts.RequestPermission(),
+//        onResult = { isGranted ->
+//            if (isGranted) {
+//                Toast.makeText(context, "Notification permission granted", Toast.LENGTH_SHORT).show()
+//                navigateToNextPage()
+//            } else {
+//                Toast.makeText(context, "Notification permission denied", Toast.LENGTH_SHORT).show()
+//                // You can still navigate or show a dialog explaining why it's needed
+//                navigateToNextPage()
+//            }
+//        }
+//    )
     Box (modifier = Modifier.fillMaxSize()){
         Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Welcome to Planara Launcher!",
+                text = "All set",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
 
+//            Text(
+//                text = "You're all set! Before we begin, please enable notifications so you never miss important events and to keep Focus Mode running smoothly.",
+//                style = MaterialTheme.typography.bodyLarge,
+//                textAlign = TextAlign.Center,
+//                color = MaterialTheme.colorScheme.onBackground
+//            )
             Text(
-                text = "You're all set! Before we begin, please enable notifications so you never miss important events and to keep Focus Mode running smoothly.",
+                text = "You're all set! Your launcher is now configured to keep your focus intact and your schedule within reach. Every element has been designed with simplicity in mind—less clutter, fewer distractions, and a smoother path to the things that truly matter in your day.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(32.dp))
-            Text(
-                text = "Notifications let us:\n• Remind you of upcoming events\n• Keep Focus Mode active in the background\n• Deliver important updates instantly",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Start,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Button(
-                modifier = Modifier.fillMaxWidth(.8f).heightIn(min = 48.dp).padding(horizontal=15.dp),
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else{
-                        navigateToNextPage()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onBackground
-                )
-            ) {
-                Text(text = "Enable notifications", color = MaterialTheme.colorScheme.background)
-            }
+//            Text(
+//                text = "Notifications let us:\n• Remind you of upcoming events\n• Keep Focus Mode active in the background\n• Deliver important updates instantly",
+//                style = MaterialTheme.typography.bodyMedium,
+//                textAlign = TextAlign.Start,
+//                color = MaterialTheme.colorScheme.onBackground
+//            )
+//            Button(
+//                modifier = Modifier.fillMaxWidth(.8f).heightIn(min = 48.dp).padding(horizontal=15.dp),
+//                onClick = {
+//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+//                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+//                    } else{
+//                        navigateToNextPage()
+//                    }
+//                },
+//                colors = ButtonDefaults.buttonColors(
+//                    containerColor = MaterialTheme.colorScheme.onBackground
+//                )
+//            ) {
+//                Text(text = "Enable notifications", color = MaterialTheme.colorScheme.background)
+//            }
             Spacer(modifier = Modifier.height(48.dp))
 
         }
