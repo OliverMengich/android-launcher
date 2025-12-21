@@ -116,7 +116,6 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
     )
     Log.d("offsetX","offset=${offsetX.value} .alpha=${alpha.value} Parent width=$parentWidth. Box width=$boxWidth")
     val context= LocalContext.current
-    val packageManager = context.packageManager
     val appStats = viewModel.appStats.collectAsState().value
     val allAppStats = viewModel.allAppsStats.collectAsState().value
 
@@ -129,19 +128,16 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
         initialMinute = currentTime.get(Calendar.MINUTE),
     )
 
-//    var showTimeDialog by remember { mutableStateOf(false) }
     var isoDateTime by remember { mutableStateOf<String?>(null) }
 
-// When user picks a date
-    val formattedDate = remember(selectedDateMillis) {
+    LaunchedEffect(selectedDateMillis){
+        Log.d("selected_date","selected date=$selectedDateMillis")
         if (selectedDateMillis != null) {
             showTimeDialog = true // show time picker once a date is picked
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             sdf.format(Date(selectedDateMillis))
-        } else null
+        }
     }
-
-    val selectedDate = datePickerState.selectedDateMillis
     //Block until specific date
     //show all apps usage statistics and sort them by most used to least used.
 //    val formattedDate= remember(selectedDate) {
@@ -169,8 +165,6 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
             }
-
-
             val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
             isoDateTime = isoFormat.format(calendar.time)
             showTimeDialog = false
@@ -199,7 +193,13 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
         BasicAlertDialog(
             onDismissRequest = {showTimeDialog=false},
             content = {
-                Column (horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier=Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier=Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
                     TimePicker(state = timePickerState)
                     Spacer(Modifier.height(16.dp))
                     Button(
@@ -225,7 +225,9 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
     LazyColumn(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 10.dp, start = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 10.dp, start = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -272,22 +274,27 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
         item{
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxWidth(.9f)
-                    .border(width = 1.dp,color= MaterialTheme.colorScheme.onBackground, shape = RoundedCornerShape(30.dp))
-                    .onSizeChanged {
-                        parentWidth = it.width
-                    }
+                modifier = Modifier
+                    .fillMaxWidth(.9f)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        shape = RoundedCornerShape(30.dp)
+                    )
+                    .onSizeChanged { parentWidth = it.width }
             ){
 
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(size=50.dp).padding(5.dp)
-                        .offset { IntOffset(x=offsetX.value.roundToInt(), y=0) }
+                    modifier = Modifier
+                        .size(size = 50.dp)
+                        .padding(5.dp)
+                        .offset { IntOffset(x = offsetX.value.roundToInt(), y = 0) }
                         .onSizeChanged {
                             boxWidth = it.width
                         }
                         .background(
-                            color=MaterialTheme.colorScheme.onBackground,
+                            color = MaterialTheme.colorScheme.onBackground,
                             shape = RoundedCornerShape(50.dp)
                         )
                         .draggable(
@@ -297,15 +304,6 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                                     val newOffset = offsetX.value + delta
                                     offsetX.snapTo(newOffset.coerceIn(0f, maxOffset))
                                 }
-//                                offsetX = newOffset.coerceIn(0f, maxOffset)
-                                Log.d("offset","maxOffset=$maxOffset. OffsetX=${offsetX.value}")
-//                                if (!hasTriggered && offsetX >= maxOffset) {
-//                                    hasTriggered = true
-//                                    Log.d("offset","has reached end")
-//                                } else if (offsetX < maxOffset) {
-//                                    // Reset the flag if user drags back
-//                                    hasTriggered = false
-//                                }
                             },
                             onDragStopped = {
                                 onDragStopped()
@@ -313,8 +311,9 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                         )
                         .border(
                             shape = CircleShape,
-                            border = BorderStroke(width = 2.dp,  color = MaterialTheme.colorScheme.onBackground)
-                        ).align(Alignment.CenterStart),
+                            border = BorderStroke(width = 2.dp, color = MaterialTheme.colorScheme.onBackground)
+                        )
+                        .align(Alignment.CenterStart),
                 ){
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -322,7 +321,12 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                         contentDescription = "Forward"
                     )
                 }
-                Text(text="SLIDE TO BLOCK",modifier = Modifier.alpha(alpha.value).align(Alignment.Center), fontWeight = FontWeight.Bold,  textAlign = TextAlign.Center)
+                Text(
+                    text="SLIDE TO BLOCK",
+                    modifier = Modifier.alpha(alpha.value).align(Alignment.Center),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
             }
         }
         item {
@@ -336,7 +340,13 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
             }
         }
         items(items = allAppStats){ stat->
-            Row(modifier = Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column {
                     Text(text=stat.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(text="Used ${stat.timeFormat.toString()}", fontSize = 10.sp)
