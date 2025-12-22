@@ -32,7 +32,7 @@ import kotlin.toString
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
-fun HomeNavigator(padding: PaddingValues, changeTheme: (String)->Unit){
+fun HomeNavigator(padding: PaddingValues, ){
     val navController = rememberNavController()
     NavHost(navController=navController, modifier = Modifier.fillMaxSize().padding(top=30.dp), startDestination= LauncherHomeScreen, ) {
         composable<LauncherHomeScreen> {
@@ -54,9 +54,8 @@ fun HomeNavigator(padding: PaddingValues, changeTheme: (String)->Unit){
         composable<SettingsScreen> {
             SettingsPage(
                 modifier = Modifier.padding(paddingValues=padding),
-                changeTheme=changeTheme,
                 navigateHome={
-                    navController.popBackStack()
+                    navController.navigate(route = LauncherHomeScreen)
                 },
                 navigateToBlockingAppPage = {ap->
                     navController.navigate(route = BlockingAppScreen(packageName = ap.packageName))
