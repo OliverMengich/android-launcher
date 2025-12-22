@@ -1,5 +1,6 @@
 package com.example.android_launcher.presentation.screens.home.home.calendar
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,15 +16,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,17 +36,20 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
@@ -64,37 +72,34 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.android_launcher.domain.models.Event
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.android_launcher.domain.models.EventCategory
 import com.example.android_launcher.domain.models.EventRecurringType
 import com.example.android_launcher.domain.models.Priority
 import com.example.android_launcher.presentation.components.MultiDatePicker
-import com.example.android_launcher.utils.formatTimeFromMillis
-import kotlinx.coroutines.launch
+import com.example.android_launcher.presentation.screens.home.SharedViewModel
+import com.example.android_launcher.presentation.screens.home.settings.SwitchItem
+import com.example.android_launcher.utils.formatTimeToRequiredFormat
+import com.example.android_launcher.utils.notifyOptions
+import com.example.android_launcher.utils.repeatOptions
 import org.koin.compose.viewmodel.koinViewModel
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.Calendar
-import kotlin.random.Random
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit) {
-    val datePickerState = rememberDatePickerState()
+fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(),sharedViewModel: SharedViewModel = koinViewModel(),goBack:()->Unit) {
     val uiState by viewModel.newEventPageState.collectAsState()
     val newPageEvent by viewModel.newPageEvent.collectAsState(initial = NewEventPageEvent.Idle)
-
-    val context= LocalContext.current
-    val scrollState = rememberScrollState()
-    val rowScrollState = rememberScrollState()
-    val currentTime = Calendar.getInstance()
-    val timePickerState = rememberTimePickerState(
-        initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
-        initialMinute = currentTime.get(Calendar.MINUTE),
-    )
-    val scope = rememberCoroutineScope()
-    var showTimeDialog by remember{mutableStateOf(false)}
     var category by remember{mutableStateOf<String?>(null)}
+    val context= LocalContext.current
+    val localManagerData by sharedViewModel.localManagerData.collectAsStateWithLifecycle()
+    val tmFmt = localManagerData.displaySettings.timeFormat
+
+    val scrollState = rememberScrollState()
+    val timePickerState = rememberTimePickerState()
     LaunchedEffect(newPageEvent) {
         when(newPageEvent){
             is NewEventPageEvent.ShowSuccess->{
@@ -104,16 +109,31 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
             is NewEventPageEvent.ShowErrorMessage->{
                 Toast.makeText(context,(newPageEvent as NewEventPageEvent.ShowErrorMessage).message,Toast.LENGTH_SHORT).show()
             }
-            else -> {
-
-            }
+            else -> { }
+        }
+    }
+    LaunchedEffect(key1=uiState.selectedDates, key2=uiState.selectedRecurringType){
+        if(uiState.selectedDates.isNotEmpty() && uiState.selectedRecurringType != EventRecurringType.SPECIFIC_DAYS_WEEKLY){
+            viewModel.onEvent(
+                event=NewEventPageEvent.UpdateEventPageValue(
+                    field= NewEventPageState::selectedRecurringType,
+                    value= EventRecurringType.SELECTED_DATES
+                )
+            )
+        }
+        if(uiState.selectedRecurringType==EventRecurringType.WEEK_DAYS){
+            viewModel.onEvent(
+                event=NewEventPageEvent.UpdateEventPageValue(
+                    field= NewEventPageState::selectedDates,
+                    value= emptySet()
+                )
+            )
         }
     }
     fun onTimePicked(){
         if (category==null){
             return
         }
-        showTimeDialog=false
         when(category){
             "startTime"->{
                 viewModel.onEvent(
@@ -139,18 +159,12 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
             event=NewEventPageEvent.CreateEvent
         )
     }
-    LaunchedEffect(Unit){
-        viewModel.onEvent(
-            event=NewEventPageEvent.UpdateEventPageValue(
-                field=NewEventPageState::startTime,
-                value= LocalTime.of(timePickerState.hour, timePickerState.minute)
-            )
-        )
-    }
 
-    if(showTimeDialog){
+    if(category!=null){
         BasicAlertDialog(
-            onDismissRequest = {showTimeDialog=false},
+            onDismissRequest = {
+                category=null
+            },
             content = {
                 Column (horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier=Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
                     TimePicker(state = timePickerState)
@@ -233,7 +247,7 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
                     )
                 },
             )
-            LazyRow(Modifier.fillMaxWidth().horizontalScroll(rowScrollState).padding(16.dp),
+            LazyRow(Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
@@ -241,39 +255,55 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
                     InputChip(
                         modifier = Modifier.padding(horizontal = 5.dp),
                         label = {
-                            Text(text=it.name)
+                            Text(text=it.name.replace("_"," "))
                         },
-                        onClick = {},
+                        onClick = {
+                            viewModel.onEvent(
+                                event=NewEventPageEvent.UpdateEventPageValue(
+                                    field=NewEventPageState::eventCategory,
+                                    value= it
+                                )
+                            )
+                        },
+                        leadingIcon = if (uiState.eventCategory==it) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.Done,
+                                    contentDescription = "Done icon",
+                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         shape = RoundedCornerShape(20.dp),
-                        selected = true
+                        selected = uiState.eventCategory==it
                     )
                 }
             }
             HorizontalDivider()
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("All day")
-                Switch(
-                    checked = uiState.isAllDay,
-                    onCheckedChange = {
-                        viewModel.onEvent(
-                            event=NewEventPageEvent.UpdateEventPageValue(
-                                field=NewEventPageState::isAllDay,
-                                value= it
-                            )
+            Spacer(Modifier.height(16.dp))
+            SwitchItem(
+                title="All Day",
+                checked=uiState.selectedRecurringType== EventRecurringType.DAILY,
+                handleSwitchToggled = {
+                    viewModel.onEvent(
+                        event=NewEventPageEvent.UpdateEventPageValue(
+                            field=NewEventPageState::selectedRecurringType,
+                            value= if(it) EventRecurringType.DAILY else EventRecurringType.NONE
                         )
-                    }
-                )
-            }
+                    )
+                }
+            )
+
             Spacer(Modifier.height(16.dp))
             Column(Modifier.fillMaxWidth()) {
                 Text("Select Dates")
                 Spacer(Modifier.height(16.dp))
                 MultiDatePicker(
                     selectedDates = uiState.selectedDates,
+                    enableAllDays = uiState.selectedRecurringType== EventRecurringType.DAILY,
+                    enableWeekDays = uiState.selectedRecurringType == EventRecurringType.WEEK_DAYS,
                     onDatesSelected = {
                         viewModel.onEvent(
                             event=NewEventPageEvent.UpdateEventPageValue(
@@ -287,32 +317,32 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
                 )
             }
             HorizontalDivider()
-            if(!uiState.isAllDay && (uiState.selectedDates.isEmpty() || uiState.selectedDates.size==1) ){
-                if (uiState.selectedRecurringType== EventRecurringType.SPECIFIC_DAYS_WEEKLY){
+            if(uiState.selectedRecurringType != EventRecurringType.DAILY ){
+                if (uiState.selectedRecurringType == EventRecurringType.SPECIFIC_DAYS_WEEKLY) {
                     Text(text="Your Event will occur every ${uiState.selectedDates.map { it.dayOfWeek.toString() }}")
                 }
-                Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Repeat")
+                Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp) ) {
+                    Text(text="Repeat")
                     ExposedDropdownMenuExample(
-                        options = EventRecurringType.entries,
-                        value= uiState.selectedRecurringType,
-                        setValue = {
+                        modifier=Modifier.fillMaxWidth(),
+                        value = uiState.selectedRecurringType,
+                        setValue = { newType ->
                             viewModel.onEvent(
                                 event=NewEventPageEvent.UpdateEventPageValue(
-                                    field=NewEventPageState::selectedRecurringType,
-                                    value=it
+                                    field = NewEventPageState::selectedRecurringType,
+                                    value = newType
                                 )
                             )
-                        }
+                        },
+                        options = repeatOptions.keys.toList(),
+                        label = "Repeat",
+                        displayText = { type -> repeatOptions[type] ?: "Unknown" }
                     )
+                    Spacer(Modifier.height(16.dp))
                 }
                 HorizontalDivider()
             }
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Priority")
                 ExposedDropdownMenuExample(
                     options = Priority.entries,
@@ -335,8 +365,12 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
             ) {
                 Text("Start Time")
                 Text(
-                    text= formatTimeFromMillis(timeInMillis=uiState.startTime?.toSecondOfDay()?.toLong() as Long),
-                    Modifier.clickable{category="startTime";showTimeDialog=true}
+                    text= uiState.startTime.formatTimeToRequiredFormat(tmFmt),
+                    Modifier.clickable{
+                        category="startTime"
+                        timePickerState.hour = uiState.startTime.hour
+                        timePickerState.minute = uiState.startTime.minute
+                    }
                 )
             }
             Row(
@@ -346,15 +380,45 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
             ) {
                 Text("End Time")
                 Text(
-                    text=formatTimeFromMillis(uiState.endTime?.toSecondOfDay()?.toLong() as Long),
-                    Modifier.clickable{category="endTime";showTimeDialog=true}
+                    text= uiState.endTime.formatTimeToRequiredFormat(tmFmt),
+                    Modifier.clickable{
+                        category="endTime"
+                        timePickerState.hour = uiState.endTime.hour
+                        timePickerState.minute = uiState.endTime.minute
+                    }
                 )
+            }
+            HorizontalDivider()
+            Column(Modifier.padding(vertical=10.dp)){
+                Row(Modifier.fillMaxWidth().padding(start = 0.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically){
+                    Icon(Icons.Default.Notifications, contentDescription = "notifications")
+                    Text(text= "${uiState.notifyBeforeTime} minutes before",)
+                }
+                LazyRow(verticalAlignment = Alignment.CenterVertically,) {
+                    items(notifyOptions.keys.toList()){
+                        InputChip(
+                            modifier = Modifier.padding(horizontal=5.dp),
+                            label = {
+                                Text(text = notifyOptions[it] ?: "")
+                            },
+                            selected=false,
+                            onClick = {
+                                viewModel.onEvent(
+                                    event=NewEventPageEvent.UpdateEventPageValue (
+                                        field=NewEventPageState::notifyBeforeTime,
+                                        value= it
+                                    )
+                                )
+                            },
+                        )
+                    }
+                }
             }
             HorizontalDivider()
             Column(Modifier.padding(vertical=10.dp)){
                 Text("Location/Link")
                 Spacer(Modifier.height(16.dp))
-                OutlinedTextField(
+                TextField(
                     value = uiState.locationLink,
                     onValueChange = {
                         viewModel.onEvent(
@@ -364,20 +428,19 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
                             )
                         )
                     },
-                    placeholder = { Text(text="Enter event name", textAlign = TextAlign.Center) },
+                    placeholder = { Text(text="Location/Link", textAlign = TextAlign.Center) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
+                    colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
-                        focusedBorderColor = Color.Green,
-                        unfocusedBorderColor = Color.Gray
+                        focusedIndicatorColor = Color.Green,
+                        unfocusedIndicatorColor = Color.Transparent,
                     ),
                     keyboardOptions = KeyboardOptions(
-                        autoCorrect = false,
+                        autoCorrectEnabled = false,
                         imeAction = ImeAction.Go
                     ),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(40.dp),
                 )
             }
             HorizontalDivider()
@@ -415,6 +478,7 @@ fun NewEventPage(viewModel: CalendarViewModel = koinViewModel(), goBack:()->Unit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> ExposedDropdownMenuExample(
+    modifier: Modifier=Modifier,
     value: T,
     setValue: (T) -> Unit,
     options: List<T>,
@@ -426,26 +490,23 @@ fun <T> ExposedDropdownMenuExample(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded },
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(width = 0.5.dp, color = MaterialTheme.colorScheme.onBackground)
+        modifier = modifier.border(0.dp,Color.Transparent).background(color = Color.Transparent, shape = RoundedCornerShape(20.dp)),
     ) {
-        TextField(
+        OutlinedTextField(
             value = displayText(value),
-            onValueChange = { /* readOnly → ignore input */ },
+            onValueChange = { /* readOnly */ },
             readOnly = true,
-            label = { Text(label) },
+            label = {  },
+//            label = { Text(label) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
-            colors = ExposedDropdownMenuDefaults.textFieldColors(),
-            modifier = Modifier.menuAnchor()
+            colors = OutlinedTextFieldDefaults.colors(),
+//            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryEditable,true)
         )
 
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(displayText(option)) },
