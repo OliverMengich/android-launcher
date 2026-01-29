@@ -14,7 +14,7 @@ interface AppsDao {
     fun getAllApps(): Flow<List<App>>
 
     @Query("SELECT * FROM apps WHERE isPinned=1;")
-    fun getPinnedApps(): List<App>
+    fun getPinnedApps(): Flow<List<App>>
 
     @Query("SELECT * FROM apps WHERE isHidden=1;")
     fun getHiddenApps(): List<App>

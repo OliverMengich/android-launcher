@@ -47,9 +47,7 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
     )
 
     val apps = appsRepository.getAllApps().stateIn(viewModelScope, started=SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000), initialValue=emptyList())
-
-    private val _pinnedApps = MutableStateFlow<List<App>>(emptyList())
-    val pinnedApps: StateFlow<List<App>> = _pinnedApps.asStateFlow()
+    val pinnedApps = appsRepository.getPinnedApps().stateIn(viewModelScope,started=SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000), initialValue=emptyList())
 
     val batteryInfo = appsRepository.batteryInfo
     val refetchAppsFlow = appsRepository.refetchAppsFlow
@@ -71,18 +69,6 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
         }
     }
 
-    fun getPinnedApps(){
-        val pinApps = appsRepository.getPinnedApps()
-        _pinnedApps.value = pinApps
-    }
-
-    init {
-        viewModelScope.launch(Dispatchers.IO) {
-            Log.d("getting_app","apps")
-            getPinnedApps()
-        }
-    }
-
     fun blockUnblockAppFc(app: App,blocked: Int){
         viewModelScope.launch(Dispatchers.IO) {
             if (app.isPinned == true) {
@@ -99,7 +85,6 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
         }
         viewModelScope.launch(Dispatchers.IO) {
             appsRepository.pinUnpinApp(app.packageName,pinned)
-            getPinnedApps()
         }
     }
 
