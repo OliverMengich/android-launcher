@@ -123,8 +123,8 @@ class AppsRepositoryImpl(private val appsDao: AppsDao, private val context: Cont
             "Not Available (API < 26)"
         }
     }
-    override fun batteryInfoReceiver(batteryInfoVal: BatteryInfo) {
-        batteryInfo.value = batteryInfoVal
+    override fun batteryInfoReceiver(batteryInfoValue: BatteryInfo) {
+        batteryInfo.value = batteryInfoValue
     }
 
     override fun insertApps(apps: List<App>) {
@@ -133,7 +133,7 @@ class AppsRepositoryImpl(private val appsDao: AppsDao, private val context: Cont
         )
     }
 
-    override fun getPinnedApps(): List<App> {
+    override fun getPinnedApps(): Flow<List<App>> {
         return appsDao.getPinnedApps()
     }
 
