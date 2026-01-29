@@ -32,6 +32,11 @@
                 android:enabled="true"
                 tools:ignore="ForegroundServicePermission"
             />
+<!--            <service-->
+<!--                android:name=".services.OverlayService"-->
+<!--                android:exported="false"-->
+<!--                android:foregroundServiceType="mediaProjection|specialUse"-->
+<!--            />-->
             <service android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:name=".services.MyAccessibilityService">
                 <intent-filter>
                     <action android:name="android.accessibilityservice.AccessibilityService"/>
