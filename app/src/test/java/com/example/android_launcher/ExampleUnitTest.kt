@@ -1,4 +1,4 @@
-package com.example.android_launcher
+package com.planara.android_launcher
 
 import org.junit.Test
 

@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.android_launcher"
+    namespace = "com.planara.android_launcher"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.android_launcher"
+        applicationId = "com.planara.android_launcher"
         minSdk = 28
         targetSdk = 35
         versionCode = 1
@@ -95,17 +95,13 @@ dependencies {
     //Serialization Json
     implementation(libs.kotlinx.serialization.json)
 
-
-    //Room Database
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
-    annotationProcessor(libs.androidx.room.compiler)
-
     //Coil
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 
     //compose rich editor
     implementation(libs.richeditor.compose)
+    //icons
+    implementation(libs.androidx.material.icons.core)
+    implementation(libs.androidx.material.icons.extended)
 }

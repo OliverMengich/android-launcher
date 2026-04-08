@@ -91,7 +91,8 @@
                         <data android:scheme="https" android:host="www.planaralauncher.com"/>
                     </intent-filter>
             </activity>
-            <activity android:name=".BlockedAppActivity"/>
+            <activity android:name="com.planara.android_launcher.BlockedAppActivity"/>
+
     </application>
 
 </manifest>

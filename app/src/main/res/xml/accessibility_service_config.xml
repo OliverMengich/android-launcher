@@ -6,4 +6,4 @@
     android:notificationTimeout="100"
     android:accessibilityFlags="flagDefault"
     android:canRetrieveWindowContent="true"
-    android:settingsActivity="com.example.android_launcher.YourSettingsActivity" />
+    android:settingsActivity="com.planara.android_launcher.YourSettingsActivity" />
