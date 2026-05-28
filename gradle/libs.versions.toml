@@ -24,6 +24,7 @@ material3 = "1.4.0"
 lifecycleService = "2.10.0"
 composeRichEditor = "1.0.0-rc13"
 dataStore = "1.2.1"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
@@ -60,8 +61,10 @@ androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-s
 richeditor-compose = { module="com.mohamedrejeb.richeditor:richeditor-compose", version.ref="composeRichEditor"}
 androidx-datastore = { module="androidx.datastore:datastore", version.ref="dataStore" }
 
-
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version = "2.3.9" }
+google-services = { id = "com.google.gms.google-services", version = "4.4.4" }
