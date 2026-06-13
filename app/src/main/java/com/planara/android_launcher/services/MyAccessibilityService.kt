@@ -66,7 +66,7 @@ class MyAccessibilityService: AccessibilityService(), KoinComponent {
                                     startActivity(intent)
                                 }
                             }
-                            BlockType.SCHEDULED->{
+                            BlockType.USE_BETWEEN->{
                                 if (isDatePassed(ap.releaseDate)){
                                     dataStore.updateData {
                                         it.copy(
@@ -90,6 +90,33 @@ class MyAccessibilityService: AccessibilityService(), KoinComponent {
                                         }
                                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                                         startActivity(intent)
+                                    }
+                                }
+                            }
+                            BlockType.NOT_USE->{
+                                if (isDatePassed(ap.releaseDate)){
+                                    dataStore.updateData {
+                                        it.copy(
+                                            blockedApps = it.blockedApps.filter { blockedApp ->  blockedApp.packageName != ap.packageName }
+                                        )
+                                    }
+                                    return@launch
+                                }
+                                ap.blockType.second.forEach { (startTime, endTime) ->
+                                    if (isNowBetween(startTime,endTime)){
+                                        val intent = Intent(
+                                            this@MyAccessibilityService,
+                                            BlockedAppActivity::class.java
+                                        ).apply {
+                                            putExtra("app_name", ap.name)
+                                            val msg = ap.blockType.second.joinToString{ (startTime, endTime) -> "$startTime - $endTime" }
+                                            putExtra("message", "You block ${ap.name} and you can only use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving")
+
+                                        }
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        startActivity(intent)
+                                    }else{
+                                        return@launch
                                     }
                                 }
                             }
