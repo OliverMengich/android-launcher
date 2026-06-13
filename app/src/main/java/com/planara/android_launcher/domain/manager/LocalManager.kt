@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class LocalManager(
+    val activeTab: Int = 1,
     val phoneApp: String = "",
     val clockApp: String = "",
     val cameraApp: String = "",
