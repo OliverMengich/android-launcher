@@ -37,6 +37,21 @@ import com.planara.android_launcher.utils.formatTimeToRequiredFormat
 import java.time.LocalTime
 
 class BlockedAppActivity: ComponentActivity() {
+    companion object {
+        @Volatile
+        var isVisible = false
+            private set
+    }
+
+    override fun onStart() {
+        super.onStart()
+        isVisible = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isVisible = false
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val appName = intent.getStringExtra("app_name")
