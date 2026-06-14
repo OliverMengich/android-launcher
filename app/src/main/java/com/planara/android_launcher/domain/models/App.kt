@@ -14,7 +14,8 @@ data class App(
 )
 enum class BlockType{
     NORMAL,
-    SCHEDULED
+    NOT_USE,
+    USE_BETWEEN
 }
 @Serializable
 data class UsageTime(val startTime: String,val endTime: String)
