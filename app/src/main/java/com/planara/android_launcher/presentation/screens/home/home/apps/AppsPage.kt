@@ -130,13 +130,7 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(), navigateToHome:()->Un
                 keyboardActions = KeyboardActions(
                     onGo = {
                         if (filteredApps.isNotEmpty()) {
-                            viewModel.launchApp(
-                                app=filteredApps[0],
-                                callBackFunction = {
-                                    textField = ""
-                                    navigateToHome()
-                                }
-                            )
+                            viewModel.launchApp(app=filteredApps[0])
                         }
                     }
                 ),
@@ -151,13 +145,7 @@ fun AppsPage(viewModel: SharedViewModel = koinViewModel(), navigateToHome:()->Un
             items(items=filteredApps) { ap->
                 AppItem(
                     onClick = {
-                        viewModel.launchApp(
-                            app=ap,
-                            callBackFunction = {
-                                textField = ""
-                                navigateToHome()
-                            }
-                        )
+                        viewModel.launchApp(app=ap)
                     },
                     ap = ap,
                     onHideApp = {
