@@ -24,6 +24,7 @@ import com.planara.android_launcher.domain.models.BlockType
 import com.planara.android_launcher.domain.models.UsageTime
 import com.planara.android_launcher.utils.formatIsoTimeToFriendly
 import com.planara.android_launcher.utils.isNowBetween
+import com.planara.android_launcher.utils.joinToStringWithAnd
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -87,7 +88,7 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
         }
     }
 
-     fun launchApp(app: App,callBackFunction: (()->Unit)?=null){
+     fun launchApp(app: App){
          Log.d("package_name",app.packageName)
          viewModelScope.launch(Dispatchers.IO) {
              val blockedApps = appsRepository.getBlockedApps()
@@ -114,7 +115,7 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                          Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
                      }
                  }
-                 else if (ap.blockType.first == BlockType.SCHEDULED){
+                 else if (ap.blockType.first == BlockType.USE_BETWEEN){
                      ap.blockType.second.forEach { (startTime, endTime) ->
                          if (isNowBetween(startTime,endTime)){
                              val intent = pm?.getLaunchIntentForPackage(app.packageName).also {
@@ -131,9 +132,33 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                      Intent(context, BlockedAppActivity::class.java).apply {
                          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                          putExtra("app_name", app.name)
-                         val msg = ap.blockType.second.joinToString{ (startTime, endTime) -> "$startTime - $endTime" }
-                         putExtra("message", "You block ${app.name} and you can only use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving")
+                         val msg = ap.blockType.second.joinToStringWithAnd { (startTime, endTime) ->
+                             "$startTime - $endTime"
+                         }
+                         putExtra("message", "You block ${app.name} and you can only use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving.")
                      }.also { context.startActivity(it) }
+                 }else if (ap.blockType.first == BlockType.NOT_USE){
+                     ap.blockType.second.forEach { (startTime, endTime) ->
+                         if (isNowBetween(startTime,endTime)){
+                             Intent(context, BlockedAppActivity::class.java).apply {
+                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                 putExtra("app_name", app.name)
+                                 val msg = ap.blockType.second.joinToStringWithAnd { (startTime, endTime) ->
+                                     "$startTime - $endTime"
+                                 }
+                                 putExtra("message", "You block ${app.name} and you cannot use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving.")
+                             }.also { context.startActivity(it) }
+                             return@launch
+                         }
+                         val intent = pm?.getLaunchIntentForPackage(app.packageName).also {
+                             it?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                         }
+                         if (intent != null) {
+                             context.startActivity(intent)
+                         } else {
+                             Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
+                         }
+                     }
                  }else{
                      Intent(context, BlockedAppActivity::class.java).apply {
                          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -167,7 +192,6 @@ class SharedViewModel(private val appsRepository: AppsRepository, private val co
                      Toast.makeText(context, "Can't Launch this app", Toast.LENGTH_SHORT).show()
                  }
              }
-             callBackFunction?.invoke()
         }
     }
 }

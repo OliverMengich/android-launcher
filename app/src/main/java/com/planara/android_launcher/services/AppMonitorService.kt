@@ -25,6 +25,7 @@ import com.planara.android_launcher.domain.repository.AppsRepository
 import com.planara.android_launcher.utils.formatIsoTimeToFriendly
 import com.planara.android_launcher.utils.isDatePassed
 import com.planara.android_launcher.utils.isNowBetween
+import com.planara.android_launcher.utils.joinToStringWithAnd
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -97,11 +98,13 @@ class AppMonitorService: Service() {
                             startForegroundService(Intent(this@AppMonitorService,FocusModeService::class.java))
                         }
                     }
-
                     val blockedApps = appsRepository.getBlockedApps()
-
+                    if (topApp !=null && topApp != packageName){
+                        this@AppMonitorService.dataStore.updateData {
+                            it.copy(activeTab = 1)
+                        }
+                    }
                     val appsPackageNames = blockedApps.map { it.packageName }
-                    Log.d("blocked_apps", blockedApps.toString())
                     if (topApp in appsPackageNames) {
                         val ap = blockedApps.find { it.packageName == topApp }
                         if (ap != null){
@@ -112,7 +115,7 @@ class AppMonitorService: Service() {
                                 appsRepository.blockUnblockApp(ap.packageName,ap.blockType,null)
                                 return@launch
                             }
-                            else if (ap.blockType.first == BlockType.SCHEDULED){
+                            else if (ap.blockType.first == BlockType.USE_BETWEEN){
                                 ap.blockType.second.forEach { (startTime, endTime) ->
                                     if (isNowBetween(startTime,endTime)){
                                         return@launch
@@ -124,8 +127,28 @@ class AppMonitorService: Service() {
                                 ).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     putExtra("app_name", ap.name)
-                                    putExtra("message", "You block ${ap.name} until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving")
+                                    val msg = ap.blockType.second.joinToStringWithAnd { (startTime, endTime) ->
+                                        "$startTime - $endTime"
+                                    }
+                                    putExtra("message", "You block ${ap.name} and you cannot use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving.")
                                 }.also {startActivity(it) }
+                            }else if (ap.blockType.first == BlockType.NOT_USE){
+                                ap.blockType.second.forEach { (startTime, endTime) ->
+                                    if (isNowBetween(startTime,endTime)){
+                                        Intent(
+                                            this@AppMonitorService,
+                                            BlockedAppActivity::class.java
+                                        ).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            putExtra("app_name", ap.name)
+                                            val msg = ap.blockType.second.joinToStringWithAnd { (startTime, endTime) ->
+                                                "$startTime - $endTime"
+                                            }
+                                            putExtra("message", "You block ${ap.name} and you cannot use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving.")
+                                        }.also {startActivity(it) }
+                                    }
+                                    return@launch
+                                }
                             }else{
                                 val intent = Intent(
                                     this@AppMonitorService,
@@ -164,7 +187,7 @@ class AppMonitorService: Service() {
                                     startActivity(intent)
                                 }
                             }
-                            BlockType.SCHEDULED->{
+                            BlockType.USE_BETWEEN->{
                                 if (isDatePassed(ap.releaseDate)){
                                     dataStore.updateData {
                                         it.copy(
@@ -187,6 +210,32 @@ class AppMonitorService: Service() {
                                         }
                                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                                         startActivity(intent)
+                                    }
+                                }
+                            }
+                            BlockType.NOT_USE->{
+                                if (isDatePassed(ap.releaseDate)){
+                                    dataStore.updateData {
+                                        it.copy(
+                                            blockedApps = it.blockedApps.filter { blockedApp ->  blockedApp.packageName != topApp.toString() }
+                                        )
+                                    }
+                                    return@launch
+                                }
+                                ap.blockType.second.map { (startTime, endTime) ->
+                                    if (isNowBetween(startTime,endTime)){
+                                        val intent = Intent(
+                                            this@AppMonitorService,
+                                            BlockedAppActivity::class.java
+                                        ).apply {
+                                            putExtra("app_name", ap.name)
+                                            val msg = ap.blockType.second.joinToString{ (startTime, endTime) -> "$startTime - $endTime" }
+                                            putExtra("message", "You block ${ap.name} and you cannot  use it at $msg until ${formatIsoTimeToFriendly(input=ap.releaseDate)}. Digital detox is working, keep moving.")
+                                        }
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        startActivity(intent)
+                                    }else{
+                                        return@launch
                                     }
                                 }
                             }
