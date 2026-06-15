@@ -23,7 +23,7 @@ import java.time.LocalTime
 import java.util.Locale
 
 @Composable
-fun CalendarItem(title: String,timeFormat: String?="HH:mm",events: List<Event>){
+fun CalendarItem(title: String,timeFormat: String?="HH:mm", events: List<Event>){
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text=title, modifier = Modifier.padding(end = 10.dp), fontSize = 25.sp, fontWeight = FontWeight.Bold, )
@@ -32,16 +32,29 @@ fun CalendarItem(title: String,timeFormat: String?="HH:mm",events: List<Event>){
         if (events.isEmpty()){
             Text("No events for this hour", modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp), textAlign = TextAlign.Center)
         }else{
-            LazyColumn {
-                items(items=events){ev->
+            Column {
+                events.forEach { ev ->
                     Text(
-                        text=" - ${longToMilliSeconds(timestamp = ev.start).formatTimeToRequiredFormat(pattern = timeFormat)} - ${longToMilliSeconds(timestamp = ev.end).formatTimeToRequiredFormat(pattern = timeFormat)} ${ev.title}",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
+                        text = " - ${
+                            longToMilliSeconds(ev.start)
+                                .formatTimeToRequiredFormat(pattern = timeFormat)
+                        } - ${
+                            longToMilliSeconds(ev.end)
+                                .formatTimeToRequiredFormat(pattern = timeFormat)
+                        } ${ev.title}"
                     )
                 }
             }
+//            LazyColumn {
+//                items(items=events){ev->
+//                    Text(
+//                        text=" - ${longToMilliSeconds(timestamp = ev.start).formatTimeToRequiredFormat(pattern = timeFormat)} - ${longToMilliSeconds(timestamp = ev.end).formatTimeToRequiredFormat(pattern = timeFormat)} ${ev.title}",
+//                        maxLines = 1,
+//                        overflow = TextOverflow.Ellipsis,
+//                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
+//                    )
+//                }
+//            }
         }
     }
 }
