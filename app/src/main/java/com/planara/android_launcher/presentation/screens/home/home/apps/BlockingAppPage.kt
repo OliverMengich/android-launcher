@@ -1,7 +1,5 @@
 package com.planara.android_launcher.presentation.screens.home.home.apps
 
-import android.app.TimePickerDialog
-import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -95,6 +93,10 @@ import java.util.Date
 import kotlin.collections.emptyList
 import kotlin.math.roundToInt
 
+data class BlockState(
+    val blockType: BlockType,
+    val usageTimes: List<UsageTime>
+)
 @RequiresApi(Build.VERSION_CODES.Q)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,10 +130,12 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
         label = "alpha-animation"
 
     )
-    val usageTimes = remember {
-        mutableStateListOf<UsageTime>()
+    val blockType = remember {
+        mutableStateOf(value = BlockState(
+            blockType = BlockType.NORMAL,
+            usageTimes = emptyList()
+        ))
     }
-    Log.d("offsetX","offset=${offsetX.value} .alpha=${alpha.value} Parent width=$parentWidth. Box width=$boxWidth")
     val context= LocalContext.current
     val appStats = viewModel.appStats.collectAsState().value
     val allAppStats = viewModel.allAppsStats.collectAsState().value
@@ -166,10 +170,6 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
 //        }
 //    }
 
-//    val currentTime = Calendar.getInstance()
-
-    val blockTimePickerState = rememberTimePickerState()
-    // When user closes the time picker (e.g., with a button):
     fun onTimePicked() {
         selectedDateMillis?.let { dateMillis ->
             val calendar = Calendar.getInstance().apply {
@@ -185,34 +185,48 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
         }
     }
     fun onBlockTimePicked() {
-        if (usageTimes.size==3){
-            Toast.makeText(context,"You can only use 3 times a day", Toast.LENGTH_SHORT).show()
-            return
+        if (blockType.value.blockType === BlockType.USE_BETWEEN){
+            val usageTimes = blockType.value.usageTimes.toMutableList()
+            if (usageTimes.size==3){
+                Toast.makeText(context,"You can only use 3 times a day", Toast.LENGTH_SHORT).show()
+                return
+            }
         }
         val current = LocalTime.of(timePickerState.hour, timePickerState.minute)
         val next = current.plusHours(1)
         val endTime = LocalTime.of(next.hour,next.minute)
 
-        usageTimes.add(
-            UsageTime(
+        blockType.value = blockType.value.copy(
+            usageTimes = blockType.value.usageTimes + UsageTime(
                 startTime = current.toString(),
                 endTime = endTime.toString()
             )
         )
+//        usageTimes.add(
+//            UsageTime(
+//                startTime = current.toString(),
+//                endTime = endTime.toString()
+//            )
+//        )
         showBlockTimeDialog = false
     }
     fun onDragStopped(){
         scope.launch {
             if (offsetX.value >= maxOffset) {
-                Log.d("offset", "drag stopped. has reached end")
                 if (isoDateTime !=null){
-                    if (usageTimes.isEmpty()){
-                        val blockType: Pair<BlockType, List<UsageTime>> = BlockType.NORMAL to emptyList()
-                        viewModel.blockUnblockAppFc(packageName = pkgNm,blockType , blockReleaseDate = isoDateTime)
+                    if (blockType.value.blockType !== BlockType.NORMAL && blockType.value.usageTimes.isEmpty()){
+                        Toast.makeText(context,"Setting to normal blocking because no usage times was selected", Toast.LENGTH_SHORT).show()
+                        viewModel.blockUnblockAppFc(packageName = pkgNm, blockType = (BlockType.NORMAL to emptyList()), blockReleaseDate = isoDateTime)
                     }else{
-                        val blockType: Pair<BlockType, List<UsageTime>> = BlockType.SCHEDULED to usageTimes
-                        viewModel.blockUnblockAppFc(packageName = pkgNm,blockType , blockReleaseDate = isoDateTime)
+                        viewModel.blockUnblockAppFc(packageName = pkgNm, blockType = (blockType.value.blockType to blockType.value.usageTimes), blockReleaseDate = isoDateTime)
                     }
+//                    if (blockType.value.first=== BlockType.NORMAL){
+//                        val blockType: Pair<BlockType, List<UsageTime>> = BlockType.NORMAL to emptyList()
+//                        viewModel.blockUnblockAppFc(packageName = pkgNm,blockType , blockReleaseDate = isoDateTime)
+//                    }else{
+//                        val blockType: Pair<BlockType, List<UsageTime>> = BlockType.USE_BETWEEN to usageTimes
+//                        viewModel.blockUnblockAppFc(packageName = pkgNm,blockType , blockReleaseDate = isoDateTime)
+//                    }
                     navigateBack()
                     Toast.makeText(context,"${appStats?.name} blocked", Toast.LENGTH_SHORT).show()
                 }else{
@@ -237,6 +251,7 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
+                    Text("Select Start Time",modifier=Modifier.padding(vertical = 8.dp),fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     TimePicker(state = timePickerState)
                     Spacer(Modifier.height(16.dp))
                     Button(
@@ -269,6 +284,7 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
+                    Text("Select Start Time",modifier=Modifier.padding(vertical = 8.dp),fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     TimePicker(state = timePickerState)
                     Spacer(Modifier.height(16.dp))
                     Button(
@@ -277,7 +293,8 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                             containerColor = MaterialTheme.colorScheme.onBackground,
                         ),
                         content = {
-                            Text("OK",
+                            Text(
+                                text="OK",
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(10.dp),
                                 fontWeight = FontWeight.Bold,
@@ -294,23 +311,18 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
     LazyColumn(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 10.dp, start = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, start = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = navigateBack) {
-                    Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = null)
+                    Icon(imageVector = Icons.AutoMirrored.Default.ArrowBack, contentDescription = null)
                 }
                 Text(text = "Block ${appStats?.name}", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
                 Text(text = "", textAlign = TextAlign.Center)
             }
             HorizontalDivider()
         }
-//        Text(appStats?.name ?: "", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-//        Text(appStats?.difference.toString(), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-
         item {
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) {
                 Text(
@@ -342,12 +354,18 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
         }
         item {
 //            Spacer(Modifier.height(10.dp))
-            AccordionItem(title = "Block on schedule?") {
+            AccordionItem(title = "Use at specific times?") {
                 Column(Modifier.fillMaxWidth()) {
                     Text("You can use ${appStats?.name} on up to 3 times a day for 1 hour each time. Select the times you want ")
                     Button(
                         onClick = {
                             showBlockTimeDialog = true
+                            if (blockType.value.blockType !== BlockType.USE_BETWEEN){
+                                blockType.value = blockType.value.copy(
+                                    blockType = BlockType.USE_BETWEEN,
+                                    usageTimes = emptyList()
+                                )
+                            }
                         },
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(
@@ -359,24 +377,74 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
                             Text("Add time")
                         }
                     )
-
-                    usageTimes.forEach { time->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically){
-                            Text(text="${time.startTime} - ${time.endTime}")
-                            IconButton(
-                                onClick = {
-                                    usageTimes.remove(time)
-                                },
-                                content = {
-                                    Icon(Icons.Default.Delete,null)
-                                }
-                            )
+                    if (blockType.value.blockType === BlockType.USE_BETWEEN){
+                        blockType.value.usageTimes.forEach { time->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically){
+                                Text(text="${time.startTime} - ${time.endTime}")
+                                IconButton(
+                                    onClick = {
+    //                                    blockType.value.second.(time)
+    //                                    usageTimes.remove(time)
+                                        blockType.value = blockType.value.copy(
+                                            usageTimes = blockType.value.usageTimes.filter { it!=time }
+                                        )
+                                    },
+                                    content = {
+                                        Icon(Icons.Default.Delete,null)
+                                    }
+                                )
+                            }
+                            HorizontalDivider()
                         }
-                        HorizontalDivider()
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+        }
+        item {
+            AccordionItem(title = "Don't use at specific times?") {
+                Column(Modifier.fillMaxWidth()) {
+                    Text("You can set to not use ${appStats?.name} at different times of the day.")
+                    Button(
+                        onClick = {
+                            showBlockTimeDialog = true
+                            if (blockType.value.blockType !== BlockType.NOT_USE){
+                                blockType.value = blockType.value.copy(
+                                    blockType = BlockType.NOT_USE,
+                                    usageTimes = emptyList()
+                                )
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.End),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            disabledContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f)
+                        ),
+                        content = {
+                            Icon(Icons.Default.Add,null)
+                            Text("Add time")
+                        }
+                    )
+                    if (blockType.value.blockType === BlockType.NOT_USE){
+                        blockType.value.usageTimes.forEach { time->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically){
+                                Text(text="${time.startTime} - ${time.endTime}")
+                                IconButton(
+                                    onClick = {
+                                        blockType.value = blockType.value.copy(
+                                            usageTimes = blockType.value.usageTimes.filter { it!=time }
+                                        )
+                                    },
+                                    content = {
+                                        Icon(Icons.Default.Delete,null)
+                                    }
+                                )
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(15.dp))
         }
         item{
             Box(
