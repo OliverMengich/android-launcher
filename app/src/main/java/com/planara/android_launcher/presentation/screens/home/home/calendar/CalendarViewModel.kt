@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -80,13 +81,22 @@ class CalendarViewModel(private val calendarRepository: CalendarRepository, priv
     val hasCalendarPermission = calendarRepository.hasCalendarPermissions()
     private val _deviceCalendars = MutableStateFlow<List<DeviceCalendar>>(value = emptyList())
     val deviceCalendars = _deviceCalendars.asStateFlow()
-    val todayEvents = calendarRepository
-        .getTodayEvents(startDay = LocalDate.now())
-        .stateIn(
-            viewModelScope,
-            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
-            initialValue = emptyList()
-        )
+
+    private val _todayEvents = MutableStateFlow<List<Event>>(emptyList())
+    val todayEvents = _todayEvents.asStateFlow()
+    fun getTodayEvents(){
+        viewModelScope.launch(context=Dispatchers.IO) {
+            val tdEvs = calendarRepository.getTodayEvents(startDay = LocalDate.now()).first()
+            _todayEvents.value = tdEvs
+        }
+    }
+//    val todayEvents = calendarRepository
+//        .getTodayEvents(startDay = LocalDate.now())
+//        .stateIn(
+//            viewModelScope,
+//            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
+//            initialValue = emptyList()
+//        )
     val dateEvents = startDate
         .flatMapLatest { dy->
             calendarRepository.getTodayEvents(startDay = dy)
