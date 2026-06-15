@@ -251,3 +251,10 @@ val appFonts = mapOf(
     AppFonts.CrosiantMono to "Croissant Mono",
     AppFonts.DancingScript to "Dancing Script"
 )
+fun <T> List<T>.joinToStringWithAnd(transform: (T) -> String): String =
+    when (size) {
+        0 -> ""
+        1 -> transform(first())
+        else -> dropLast(1).joinToString(", ", transform = transform) +
+                " and " + transform(last())
+    }
