@@ -14,8 +14,8 @@ android {
         applicationId = "com.planara.android_launcher"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.1.1"
 
         val apiKey = project.findProperty("API_KEY") as String? ?: "default_key"
         val secretToken = project.findProperty("SECRET_TOKEN") as String? ?: ""
@@ -28,6 +28,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
