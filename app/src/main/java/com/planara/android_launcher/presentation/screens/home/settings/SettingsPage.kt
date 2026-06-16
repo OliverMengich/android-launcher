@@ -499,7 +499,7 @@ fun AccordionItem(title: String,children: @Composable () ->Unit){
     var showChildren by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().clickable { showChildren = !showChildren }.padding(start = 20.dp, end = 18.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween){
-            Text(modifier=Modifier.padding(vertical = 8.dp),text=title,fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text=title,modifier=Modifier.padding(vertical = 8.dp),fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Icon(
                 painter = painterResource(id = R.drawable.ic_down),
                 contentDescription = null,

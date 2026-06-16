@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -73,6 +75,7 @@ import com.planara.android_launcher.utils.formatLocalDateToRequiredFormat
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.planara.android_launcher.utils.longToMilliSeconds
+import kotlinx.coroutines.flow.collect
 import java.time.LocalTime
 
 
@@ -143,16 +146,28 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
     val newEventPageEvent by calendarViewModel.newPageEvent.collectAsState(initial = NewEventPageEvent.Idle)
 
     val user = Firebase.auth.currentUser
-    val todayEvents by calendarViewModel.todayEvents.collectAsStateWithLifecycle()
-    Log.d("todayEvents","$todayEvents")
+//
+//    Log.d("todayEvents","$todayEvents")
+    LaunchedEffect(currentHour) {
+        calendarViewModel.getTodayEvents()
+    }
 
-    val hourEvents by remember(todayEvents, currentHour) {
+    var expanded by remember { mutableStateOf(false) }
+    val todayEvents by calendarViewModel.todayEvents.collectAsState()
+    val hourEvents by remember(key1 = currentHour,todayEvents) {
         derivedStateOf {
             val now = System.currentTimeMillis()
-            todayEvents.filter { ev ->
-                now in (ev.start..ev.end)
-            }
+            todayEvents
+                .filter { ev ->
+                    now in (ev.start..ev.end)
+                }
+                .sortedBy { it.start }
         }
+    }
+    val eventsToShow = if (expanded) {
+        todayEvents.sortedBy { it.start }          // all events
+    } else {
+        hourEvents           // current hour events
     }
     LaunchedEffect(key1 = newEventPageEvent) {
         if (newEventPageEvent is NewEventPageEvent.ShowSuccess) {
@@ -301,8 +316,21 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                                 )
                                 Text("Calendar", fontSize = 20.sp, modifier = Modifier.padding(10.dp))
                             }
+                            Icon(
+                                imageVector = if (expanded) {
+                                    Icons.Default.KeyboardArrowUp
+                                } else {
+                                    Icons.Default.KeyboardArrowDown
+                                },
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .clickable {
+                                        expanded = !expanded
+                                    }
+                            )
                         }
-                        CalendarItem(timeFormat=localManagerData.displaySettings.timeFormat, title = currentHour, events = hourEvents)
+                        CalendarItem( timeFormat = localManagerData.displaySettings.timeFormat, title = if (expanded) "All Events" else currentHour, events = hourEvents)
                     }
                     LazyColumn {
                         items(pinnedApps){ap->
