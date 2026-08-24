@@ -12,9 +12,12 @@ object LocalManagerImpl: Serializer<LocalManager> {
     override val defaultValue: LocalManager
         get() = LocalManager()
 
+    // Unknown keys must not wipe saved settings when the model evolves (e.g. after a downgrade).
+    private val json = Json { ignoreUnknownKeys = true }
+
     override suspend fun readFrom(input: InputStream): LocalManager {
         return try {
-            Json.decodeFromString(
+            json.decodeFromString(
                 deserializer = LocalManager.serializer(),
                 string = input.readBytes().decodeToString()
             )
@@ -27,7 +30,7 @@ object LocalManagerImpl: Serializer<LocalManager> {
     override suspend fun writeTo(t: LocalManager, output: OutputStream) {
         withContext(Dispatchers.IO) {
             output.write(
-                Json.encodeToString(
+                json.encodeToString(
                     serializer = LocalManager.serializer(),
                     value = t
                 ).encodeToByteArray()

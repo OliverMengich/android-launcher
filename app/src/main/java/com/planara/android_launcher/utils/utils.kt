@@ -6,7 +6,10 @@ import android.util.Log
 import androidx.compose.ui.graphics.Color
 import com.planara.android_launcher.domain.models.AppFonts
 import com.planara.android_launcher.domain.models.EventRecurringType
+import com.planara.android_launcher.domain.models.FocusMode
+import com.planara.android_launcher.domain.models.FocusType
 import com.planara.android_launcher.domain.models.Priority
+import com.planara.android_launcher.domain.models.UsageTime
 import com.planara.android_launcher.presentation.screens.home.home.getDaySuffix
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -51,6 +54,9 @@ fun isNowBetween(start: String, end: String): Boolean {
     val now = LocalTime.now()
     val startTime = LocalTime.parse(start)
     val endTime = LocalTime.parse(end)
+    println("now: $now. startTime: $startTime. End time: $endTime")
+    println("now: ${now >= startTime || now <= endTime}")
+    println("now in : ${now in startTime..endTime}")
 
     return when {
         startTime == endTime -> true
@@ -89,11 +95,129 @@ fun getDayOfMonthSuffix(n: Int): String {
     }
 }
 fun isDatePassed(isDateTime: String?): Boolean{
-    val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-    val givenDateTime = LocalDateTime.parse(isDateTime,formatter)
-    val now = LocalDateTime.now()
-    return givenDateTime.isBefore(now)
+    if (isDateTime.isNullOrBlank()) return false
+    return try {
+        val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+        val givenDateTime = LocalDateTime.parse(isDateTime,formatter)
+        val now = LocalDateTime.now()
+        givenDateTime.isBefore(now)
+    } catch (e: Exception) {
+        false
+    }
 }
+
+/**
+ * Whether a focus window is in effect right now. When [sessionStart]/[sessionEnd] are set the
+ * window is also restricted to that date range (e.g. "today 10am - 1pm" instead of every day).
+ */
+fun isWindowNow(
+    window: UsageTime,
+    sessionStart: String? = null,
+    sessionEnd: String? = null,
+    now: LocalDateTime = LocalDateTime.now()
+): Boolean {
+    if (window.startTime.isBlank() || window.endTime.isBlank()) return false
+    if (sessionStart != null && safeParseLocalDateTime(sessionStart)?.isAfter(now) == true) return false
+    if (sessionEnd != null && safeParseLocalDateTime(sessionEnd)?.isBefore(now) == true) return false
+    // Compare against `now` (not the wall clock) so callers can evaluate arbitrary instants.
+    return isTimeBetween(now.toLocalTime(), window.startTime, window.endTime)
+}
+
+/** [isNowBetween] without depending on the wall clock, so it can be evaluated for any instant. */
+private fun isTimeBetween(now: LocalTime, start: String, end: String): Boolean {
+    val startTime = runCatching { LocalTime.parse(start) }.getOrNull() ?: return false
+    val endTime = runCatching { LocalTime.parse(end) }.getOrNull() ?: return false
+    return when {
+        startTime == endTime -> true
+        startTime < endTime -> now in startTime..endTime
+        else -> now >= startTime || now <= endTime
+    }
+}
+
+/**
+ * Whether a focus block should be enforced right now for the given scheduling type.
+ *
+ * - NORMAL:            always true.
+ * - FOCUS_BETWEEN:     true only inside one of the windows.
+ * - NO_FOCUS_BETWEEN:  true everywhere except inside one of the windows.
+ */
+fun isFocusBlockActive(
+    focusType: FocusType,
+    usageTimes: List<UsageTime>,
+    sessionStart: String? = null,
+    sessionEnd: String? = null,
+    now: LocalDateTime = LocalDateTime.now()
+): Boolean {
+    return when (focusType) {
+        FocusType.NORMAL -> true
+        FocusType.FOCUS_BETWEEN -> usageTimes.any { isWindowNow(it, sessionStart, sessionEnd, now) }
+        FocusType.NO_FOCUS_BETWEEN -> usageTimes.none { isWindowNow(it, sessionStart, sessionEnd, now) }
+    }
+}
+
+private fun safeParseLocalDateTime(value: String?): LocalDateTime? {
+    if (value.isNullOrBlank()) return null
+    return runCatching { LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }.getOrNull()
+}
+
+/** The effective windows of a session, converting the legacy single range if needed. */
+fun FocusMode.focusWindows(): List<UsageTime> =
+    if (usageTimes.isEmpty() && startTime.isNotBlank() && endTime.isNotBlank()) {
+        listOf(UsageTime(startTime = startTime, endTime = endTime))
+    } else {
+        usageTimes
+    }
+
+private fun FocusMode.effectiveFocusType(): FocusType =
+    if (usageTimes.isEmpty() && startTime.isNotBlank() && endTime.isNotBlank()) FocusType.FOCUS_BETWEEN else focusType
+
+/** True when the session's overall start/end date range is in effect (or open ended). */
+fun FocusMode.isWithinSessionDates(now: LocalDateTime = LocalDateTime.now()): Boolean {
+    safeParseLocalDateTime(startDate)?.let { if (it.isAfter(now)) return false }
+    safeParseLocalDateTime(endDate)?.let { if (it.isBefore(now)) return false }
+    return true
+}
+
+/** True when the session is still relevant, i.e. its end date has not passed. */
+fun FocusMode.isExpired(now: LocalDateTime = LocalDateTime.now()): Boolean =
+    safeParseLocalDateTime(endDate)?.isBefore(now) == true
+
+/** True when the session has not expired and is scheduled to be enforced right now. */
+fun FocusMode.isActive(now: LocalDateTime = LocalDateTime.now()): Boolean {
+    if (isExpired(now)) return false
+    return isWithinSessionDates(now) && isFocusBlockActive(effectiveFocusType(), focusWindows(), startDate, endDate, now)
+}
+
+/** True when the session has not expired yet (so it is either active or will become active). */
+fun FocusMode.isScheduled(): Boolean = !isExpired()
+
+/** Human readable list of the scheduled windows for the given focus mode. */
+fun FocusMode.windowsLabel(): String = focusWindows()
+    .filter { it.startTime.isNotBlank() && it.endTime.isNotBlank() }
+    .joinToStringWithAnd { (start, end) ->
+        val st = runCatching { LocalTime.parse(start).formatTimeToRequiredFormat("hh:mm a") }.getOrDefault(start)
+        val et = runCatching { LocalTime.parse(end).formatTimeToRequiredFormat("hh:mm a") }.getOrDefault(end)
+        "$st - $et"
+    }
+
+/** Human readable one-line description of what a focus session does. */
+fun FocusMode.describe(): String = buildString {
+    when (effectiveFocusType()) {
+        FocusType.NORMAL -> append("Focus all day")
+        FocusType.FOCUS_BETWEEN -> append("Focus only during ${windowsLabel()}")
+        FocusType.NO_FOCUS_BETWEEN -> append("Focus all day except ${windowsLabel()}")
+    }
+    when {
+        startDate.isNotBlank() && endDate.isNotBlank() -> append(", from ${formatIsoTimeToFriendly(startDate)} to ${formatIsoTimeToFriendly(endDate)}")
+        endDate.isNotBlank() -> append(", until ${formatIsoTimeToFriendly(endDate)}")
+        startDate.isNotBlank() -> append(", from ${formatIsoTimeToFriendly(startDate)}")
+    }
+}
+
+/** The most specific session currently in effect, if any. */
+fun List<FocusMode>.mostRelevantActive(): FocusMode? =
+    filter { it.isActive() }.maxByOrNull { it.endDate }
+
 fun isAppInstalled(context: Context, packageName: String): Boolean {
     return try {
         context.packageManager.getPackageInfo(packageName, 0)
@@ -226,6 +350,7 @@ val timeFormatOptions = mapOf(
     "HH:mm 'hrs'" to "07:45hrs",
     "HH:mm:ss" to "07:45:45",
     "H:mm:ss" to "7:45:45",
+    "h:mm" to "7:45",
     "h:mm a" to "7:45 am",
     "hh:mm a" to "07:45 am",
     "h:mm:ss a" to "7:45:45 am",
@@ -258,3 +383,40 @@ fun <T> List<T>.joinToStringWithAnd(transform: (T) -> String): String =
         else -> dropLast(1).joinToString(", ", transform = transform) +
                 " and " + transform(last())
     }
+
+/** Absolute time a running focus session ends, used by the countdown. */
+fun FocusMode.currentWindowEnd(now: LocalDateTime = LocalDateTime.now()): LocalDateTime? {
+    if (!isActive(now)) return null
+    val sessionEnd = safeParseLocalDateTime(endDate)
+    // All-day / always-on sessions are bounded only by their end date.
+    if (effectiveFocusType() == FocusType.NORMAL) return sessionEnd
+
+    val windowEnd = focusWindows()
+        .filter { isWindowNow(it, startDate, endDate, now) }
+        .mapNotNull { window ->
+            runCatching {
+                // An end time earlier than the start means the window runs past midnight.
+                val startsAfterEnd = LocalTime.parse(window.endTime) < LocalTime.parse(window.startTime)
+                val day = if (startsAfterEnd) now.toLocalDate().plusDays(1) else now.toLocalDate()
+                day.atTime(LocalTime.parse(window.endTime))
+            }.getOrNull()
+        }
+        .filter { it.isAfter(now) }
+        .minOrNull()
+
+    // Never run past the session's own end date.
+    return listOfNotNull(windowEnd, sessionEnd).minOrNull()
+}
+
+/** The focus window containing [now], used to show the current start/end hours. */
+fun FocusMode.currentWindow(now: LocalDateTime = LocalDateTime.now()): UsageTime? =
+    focusWindows().filter { isWindowNow(it, startDate, endDate, now) }.minByOrNull { it.startTime }
+
+/** Formats a millis duration as `HH:mm:ss` for the countdown. */
+fun formatCountdown(millis: Long): String {
+    val totalSeconds = (millis.coerceAtLeast(0L)) / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+}
