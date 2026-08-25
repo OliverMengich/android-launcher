@@ -9,6 +9,7 @@ import com.planara.android_launcher.domain.repository.CalendarRepository
 import com.planara.android_launcher.presentation.screens.home.SharedViewModel
 import com.planara.android_launcher.presentation.screens.home.home.apps.BlockingAppViewModel
 import com.planara.android_launcher.presentation.screens.home.home.calendar.CalendarViewModel
+import com.planara.android_launcher.presentation.screens.home.home.focus.FocusModeViewModel
 import com.planara.android_launcher.presentation.screens.home.settings.SettingsViewModel
 import com.planara.android_launcher.presentation.screens.onboarding.OnboardingViewModel
 import org.koin.core.module.dsl.viewModel
@@ -24,6 +25,7 @@ val appModule = module {
 
     viewModelOf(::CalendarViewModel)
     viewModelOf(::BlockingAppViewModel)
+    viewModelOf(::FocusModeViewModel)
     viewModelOf(::OnboardingViewModel)
     viewModelOf(::MainViewModel)
     viewModelOf(::SettingsViewModel)
