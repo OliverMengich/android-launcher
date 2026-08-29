@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -52,6 +54,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import java.util.Locale
 import androidx.compose.ui.unit.dp
@@ -64,19 +67,23 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
+import java.time.Duration
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.Calendar
+import kotlin.time.Duration.Companion.seconds
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.planara.android_launcher.presentation.screens.home.home.calendar.CalendarViewModel
 import com.planara.android_launcher.presentation.screens.home.home.calendar.NewEventPageEvent
-import com.planara.android_launcher.utils.formatIsoTimeToFriendly
+import com.planara.android_launcher.presentation.components.FocusCountdown
+import com.planara.android_launcher.presentation.components.remainingMillisUntil
+import com.planara.android_launcher.utils.currentWindow
+import com.planara.android_launcher.utils.currentWindowEnd
 import com.planara.android_launcher.utils.formatLocalDateToRequiredFormat
-import com.google.firebase.Firebase
-import com.google.firebase.auth.auth
-import com.planara.android_launcher.utils.longToMilliSeconds
-import kotlinx.coroutines.flow.collect
-import java.time.LocalTime
+import com.planara.android_launcher.utils.isActive
+import com.planara.android_launcher.LocalUserSettings
 
 
 @Composable()
@@ -101,13 +108,7 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
         val pattern = localManagerData.displaySettings.timeFormat.replace(Regex(":mm(:ss)?"), ":00")
         SimpleDateFormat(pattern, Locale.getDefault())
     }
-    val focusModeEndTime = remember(key1=localManagerData.focusMode.isActive){
-        mutableStateOf<String?>(
-            value=if(isFocusModeActive){
-                localManagerData.focusMode.endTime
-            }else null
-        )
-    }
+
 
     LaunchedEffect(key1 = Unit,key2 = localManagerData) {
         val timeFmt = SimpleDateFormat(localManagerData.displaySettings.timeFormat, locale)
@@ -144,10 +145,6 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
     }
     val batteryInfo = viewModel.batteryInfo.collectAsState().value
     val newEventPageEvent by calendarViewModel.newPageEvent.collectAsState(initial = NewEventPageEvent.Idle)
-
-    val user = Firebase.auth.currentUser
-//
-//    Log.d("todayEvents","$todayEvents")
     LaunchedEffect(currentHour) {
         calendarViewModel.getTodayEvents()
     }
@@ -174,6 +171,7 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
             Log.d("Calendar", "Success")
         }
     }
+    val settings = LocalUserSettings.current
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -185,28 +183,22 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                 ) {
                     Text("Home", fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
                     if(!isFocusModeActive){
-                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (user !=null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (settings.profileImagePath.isNotEmpty()) {
                                 OutlinedIconButton(
                                     modifier = Modifier.padding(0.dp),
                                     onClick = {
                                         navigateToSettingsPage()
                                     },
                                     content = {
-                                        if(user.photoUrl!=null){
-                                            AsyncImage(
-                                                model = user.photoUrl,
-                                                contentDescription = "User profile photo",
-                                                modifier = Modifier
-                                                    .size(30.dp)
-                                                    .clip(CircleShape)
-                                                    .border(width = 1.dp, color = Color.Transparent, shape = CircleShape)
-                                            )
-                                        }else{
-                                            Box(modifier = Modifier.size(20.dp).background(Color(0xff494949)), contentAlignment = Alignment.Center){
-                                                Text(user.displayName.toString().take(2),color=Color.White)
-                                            }
-                                        }
+                                        AsyncImage(
+                                            model = settings.profileImagePath,
+                                            contentDescription = "User profile photo",
+                                            modifier = Modifier
+                                                .size(30.dp)
+                                                .clip(CircleShape)
+                                                .border(width = 1.dp, color = Color.Transparent, shape = CircleShape)
+                                        )
                                     }
                                 )
                             }
@@ -301,9 +293,10 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                 }
             }
             if (isFocusModeActive){
-                Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,){
-                    Text("Focus Mode is active until ${formatIsoTimeToFriendly(input=focusModeEndTime.value)} ")
-                }
+                FocusActiveSection(
+                    localManagerData = localManagerData,
+                    timeFormat = localManagerData.displaySettings.timeFormat
+                )
             }else{
                 Column(modifier = Modifier.padding(10.dp)) {
                     Column(modifier = Modifier.fillMaxWidth().border(width = .5.dp, color = Color.Gray, shape = RoundedCornerShape(16.dp)).padding(10.dp)) {
@@ -330,7 +323,7 @@ fun HomePage(viewModel: SharedViewModel = koinViewModel(),calendarViewModel: Cal
                                     }
                             )
                         }
-                        CalendarItem( timeFormat = localManagerData.displaySettings.timeFormat, title = if (expanded) "All Events" else currentHour, events = hourEvents)
+                        CalendarItem( timeFormat = localManagerData.displaySettings.timeFormat, title = if (expanded) "All Events" else currentHour, events = eventsToShow)
                     }
                     LazyColumn {
                         items(pinnedApps){ap->
@@ -437,5 +430,64 @@ fun getDaySuffix(day: Int): String {
         2 -> "nd"
         3 -> "rd"
         else -> "th"
+    }
+}
+/**
+ * Shown on the home screen while focus is active: a live countdown ring for the session that
+ * ends first, with that session's start and end hours underneath.
+ */
+@Composable
+private fun FocusActiveSection(
+    localManagerData: com.planara.android_launcher.domain.manager.LocalManager,
+    timeFormat: String
+) {
+    val nowTick by produceState(initialValue = System.currentTimeMillis()) {
+        while (true) {
+            delay(1.seconds)
+            value = System.currentTimeMillis()
+        }
+    }
+    val now = remember(nowTick) { LocalDateTime.now() }
+    // The session with the nearest end drives the ring; ties fall back to storage order.
+    val target = remember(localManagerData.focusMode, localManagerData.focusModes, nowTick) {
+        localManagerData.allFocusModes()
+            .filter { it.isActive(now) }
+            .mapNotNull { mode -> mode.currentWindowEnd(now)?.let { mode to it } }
+            .minByOrNull { it.second }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (target == null) {
+            Text(
+                text = "Focus Mode is active",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(.9f)
+            )
+            return@Column
+        }
+
+        val (mode, windowEnd) = target
+        val startOfWindow = mode.currentWindow(now)?.startTime
+            ?.let { runCatching { now.toLocalDate().atTime(LocalTime.parse(it)) }.getOrNull() }
+        val totalMillis = startOfWindow
+            ?.let { Duration.between(it, windowEnd).toMillis() }
+            ?.coerceAtLeast(1L)
+            ?: Duration.between(now, windowEnd).toMillis().coerceAtLeast(1L)
+
+        FocusCountdown(
+            remainingMillis = remainingMillisUntil(windowEnd, now),
+            totalMillis = totalMillis,
+            startTime = startOfWindow?.toLocalTime(),
+            endTime = windowEnd.toLocalTime(),
+            timeFormat = timeFormat,
+            ringSize = 240.dp,
+            valueFontSize = 36
+        )
     }
 }

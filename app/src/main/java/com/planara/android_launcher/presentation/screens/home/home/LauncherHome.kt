@@ -1,6 +1,5 @@
 package com.planara.android_launcher.presentation.screens.home.home
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -38,9 +38,12 @@ import com.planara.android_launcher.domain.manager.LocalManager
 import com.planara.android_launcher.domain.models.App
 import com.planara.android_launcher.presentation.screens.home.home.apps.AppsPage
 import com.planara.android_launcher.presentation.screens.home.home.calendar.CalendarPage
+import com.planara.android_launcher.utils.isActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Unit,navigateToNewEvent:()->Unit, navigateToBlockingAppPage:(App)-> Unit) {
@@ -63,6 +66,23 @@ fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Un
                 }
             }
     }
+//    val isFocusModeActive = prefs.focusMode?.let {
+//        !isDatePassed(isDateTime = it.endDate) && isNowBetween(it.startTime, it.endTime)
+//    } ?: false
+    // 1. Ticking state that updates every minute (adjust delayMillis as needed)
+    val hasFocusModes = prefs.focusMode != null || prefs.focusModes.isNotEmpty()
+    val currentTime by produceState(initialValue = System.currentTimeMillis(), key1 = hasFocusModes) {
+        if (hasFocusModes) {
+            while (true) {
+                delay(10_000L.milliseconds)
+                value = System.currentTimeMillis()
+            }
+        }
+    }
+
+    val isFocusModeActive = remember(prefs.focusMode, prefs.focusModes, currentTime) {
+        prefs.allFocusModes().any { it.isActive() }
+    }
     Scaffold(
         modifier = Modifier.fillMaxSize().background(Color.Black),
         bottomBar = {
@@ -74,6 +94,10 @@ fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Un
                         selectedTextColor = MaterialTheme.colorScheme.onBackground
                     ),
                     onClick = {
+                        if (isFocusModeActive){
+                            Toast.makeText(ctx, "Focus mode is active", Toast.LENGTH_SHORT).show()
+                            return@NavigationBarItem
+                        }
                         scope.launch {
                             pagerState.animateScrollToPage(page=0)
                         }
@@ -91,6 +115,10 @@ fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Un
                 NavigationBarItem(
                     label = { Text("Home") },
                     onClick = {
+                        if (isFocusModeActive){
+                            Toast.makeText(ctx, "Focus mode is active", Toast.LENGTH_SHORT).show()
+                            return@NavigationBarItem
+                        }
 //                        if (isFocusModeActive){
 //                            Toast.makeText(context, "Focus mode is active", Toast.LENGTH_SHORT).show()
 //                            return@NavigationBarItem
@@ -116,6 +144,10 @@ fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Un
                 NavigationBarItem(
                     label = { Text(text="Calendar") },
                     onClick = {
+                        if (isFocusModeActive){
+                            Toast.makeText(ctx, "Focus mode is active", Toast.LENGTH_SHORT).show()
+                            return@NavigationBarItem
+                        }
                         scope.launch {
                             pagerState.animateScrollToPage(page = 2)
                         }
@@ -137,7 +169,7 @@ fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Un
             }
         }
     ) { innerP->
-        HorizontalPager(state = pagerState,  modifier = Modifier.fillMaxSize().padding(paddingValues = innerP)) {index->
+        HorizontalPager(state = pagerState, userScrollEnabled = !isFocusModeActive, modifier = Modifier.fillMaxSize().padding(paddingValues = innerP)) {index->
             when(index){
                 0->{
                     AppsPage(
@@ -152,7 +184,10 @@ fun LauncherHome(navigateToSettingsPage:()->Unit, navigateToBlockedApp:(App)->Un
                     )
                 }
                 1->{
-                    HomePage(navigateToSettingsPage = navigateToSettingsPage, )
+                    HomePage(
+                        navigateToSettingsPage = navigateToSettingsPage,
+                        isFocusModeActive = isFocusModeActive
+                    )
                 }
                 2->{
                     CalendarPage(

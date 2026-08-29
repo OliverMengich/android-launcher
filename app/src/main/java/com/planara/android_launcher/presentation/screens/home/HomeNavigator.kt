@@ -19,6 +19,7 @@ import com.planara.android_launcher.presentation.screens.home.home.apps.Blocking
 import com.planara.android_launcher.presentation.screens.home.home.HomePage
 import com.planara.android_launcher.presentation.screens.home.home.LauncherHome
 import com.planara.android_launcher.presentation.screens.home.home.calendar.NewEventPage
+import com.planara.android_launcher.presentation.screens.home.home.focus.FocusModePage
 import com.planara.android_launcher.presentation.screens.home.settings.SettingsPage
 import kotlinx.serialization.Serializable
 import kotlin.toString
@@ -29,6 +30,7 @@ import kotlin.toString
 @Serializable data class BlockingAppScreen(val packageName: String): Screen
 @Serializable data object NewEventScreen: Screen
 @Serializable data object SettingsScreen: Screen
+@Serializable data object FocusModeScreen: Screen
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
@@ -60,6 +62,15 @@ fun HomeNavigator(padding: PaddingValues, ){
                 navigateToBlockingAppPage = {ap->
                     navController.navigate(route = BlockingAppScreen(packageName = ap.packageName))
                 },
+                navigateToFocusModePage = {
+                    navController.navigate(route = FocusModeScreen)
+                },
+            )
+        }
+        composable<FocusModeScreen> {
+            FocusModePage(
+                modifier = Modifier.padding(padding),
+                navigateBack = { navController.popBackStack() }
             )
         }
         composable<NewEventScreen> {
