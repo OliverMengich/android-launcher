@@ -9,6 +9,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
+import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.planara.android_launcher.dataStore
@@ -32,7 +33,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.TimeZone
 
 class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
@@ -294,11 +297,17 @@ class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
         val rows = context.contentResolver.delete(uri, null, null)
         return rows > 0
     }
-    override suspend fun insertEvent(event: Event): Long? = withContext(Dispatchers.IO) {
+    override suspend fun insertEvent(event: Event, calendarId: Long?): Long? = withContext(Dispatchers.IO) {
 
         if (!hasCalendarPermissions()) return@withContext null
 
-        val calendarId = context.dataStore.data.first().selectedDeviceCalendar
+        // Prefer the calendar explicitly chosen by the user, then the saved default,
+        // then the first writable calendar available on the device.
+        val targetCalendarId = calendarId
+            ?.takeIf { it > 0 }
+            ?: context.dataStore.data.first().selectedDeviceCalendar.takeIf { it > 0 }
+            ?: getDeviceCalendars().firstOrNull()?.id
+            ?: return@withContext null
 
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, event.start)
@@ -306,11 +315,13 @@ class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
             put(CalendarContract.Events.TITLE, event.title)
             put(CalendarContract.Events.DESCRIPTION, event.description)
             put(CalendarContract.Events.EVENT_LOCATION, event.location)
-            put(CalendarContract.Events.CALENDAR_ID, calendarId)
+            put(CalendarContract.Events.CALENDAR_ID, targetCalendarId)
             put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
             put(CalendarContract.Events.AVAILABILITY, event.availability)
             put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+            put(CalendarContract.Events.HAS_ALARM, if (event.minutesBefore != null) 1 else 0)
             put(CalendarContract.Events.CUSTOM_APP_URI, event.customUri)
+            put(CalendarContract.Events.RRULE, event.rRuleValue())
         }
 
         val uri = context.contentResolver.insert(
@@ -321,7 +332,7 @@ class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
         val eventId = uri?.lastPathSegment?.toLong()
 
         // Insert reminder separately
-        event.minutesBefore.let { minutes ->
+        event.minutesBefore?.let { minutes ->
             val reminderValues = ContentValues().apply {
                 put(CalendarContract.Reminders.EVENT_ID, eventId)
                 put(CalendarContract.Reminders.MINUTES, minutes)
@@ -337,6 +348,18 @@ class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
 
         eventId
     }
+    /**
+     * Builds the RRULE for an event. The new-event flow fills [Event.repeatWeekDays] and
+     * [Event.repeatUntil] so repeats end like they do in Google Calendar / Outlook.
+     */
+    private fun Event.rRuleValue(): String? = when {
+        repeatWeekDays.isEmpty() && repeatUntil == null -> selectedRecurringType.toRRule()
+        else -> selectedRecurringType.toRRule(
+            selectedDays = repeatWeekDays,
+            untilMillis = repeatUntil
+        )
+    }
+
     private fun getReminderMinutes(eventId: Long): Int? {
 
         val projection = arrayOf(
@@ -364,20 +387,24 @@ class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
         return null
     }
     override fun getDeviceCalendars(): List<DeviceCalendar> {
+        if (!hasReadCalendarPermission()) return emptyList()
 
         val calendars = mutableListOf<DeviceCalendar>()
 
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
             CalendarContract.Calendars.NAME,
-            CalendarContract.Calendars.ACCOUNT_NAME
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.CALENDAR_COLOR
         )
 
         context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
             projection,
-            null,
-            null,
+            "${CalendarContract.Calendars.SYNC_EVENTS} = ?",
+            arrayOf("1"),
             null
         )?.use { cursor ->
 
@@ -387,23 +414,41 @@ class CalendarRepositoryImpl(private val context: Context): CalendarRepository {
             val nameIndex = cursor.getColumnIndexOrThrow(
                 CalendarContract.Calendars.NAME
             )
+            val displayNameIndex = cursor.getColumnIndexOrThrow(
+                CalendarContract.Calendars.CALENDAR_DISPLAY_NAME
+            )
             val accountIndex = cursor.getColumnIndexOrThrow(
                 CalendarContract.Calendars.ACCOUNT_NAME
+            )
+            val accountTypeIndex = cursor.getColumnIndexOrThrow(
+                CalendarContract.Calendars.ACCOUNT_TYPE
+            )
+            val colorIndex = cursor.getColumnIndexOrThrow(
+                CalendarContract.Calendars.CALENDAR_COLOR
             )
 
             while (cursor.moveToNext()) {
                 calendars.add(
                     DeviceCalendar(
                         id = cursor.getLong(idIndex),
-                        name = cursor.getString(nameIndex)?:"",
-                        accountName = cursor.getString(accountIndex)
+                        name = cursor.getString(displayNameIndex)
+                            ?: cursor.getString(nameIndex)
+                            ?: "",
+                        accountName = cursor.getString(accountIndex) ?: "",
+                        accountType = cursor.getString(accountTypeIndex) ?: "",
+                        color = cursor.getInt(colorIndex)
                     )
                 )
             }
         }
 
-        return calendars
+        return calendars.distinctBy { it.id }.sortedBy { it.name.lowercase() }
     }
+
+    private fun hasReadCalendarPermission(): Boolean = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.READ_CALENDAR
+    ) == PackageManager.PERMISSION_GRANTED
     fun getReminderMinutes(context: Context, eventId: Long): Int? {
         val cursor = context.contentResolver.query(
             CalendarContract.Reminders.CONTENT_URI,

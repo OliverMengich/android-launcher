@@ -12,5 +12,5 @@ interface CalendarRepository {
     fun getDeviceCalendars(): List<DeviceCalendar>
     fun hasCalendarPermissions(): Boolean
     suspend fun deleteEvent(id: Long): Boolean
-    suspend fun insertEvent(event: Event): Long?
+    suspend fun insertEvent(event: Event, calendarId: Long? = null): Long?
 }
