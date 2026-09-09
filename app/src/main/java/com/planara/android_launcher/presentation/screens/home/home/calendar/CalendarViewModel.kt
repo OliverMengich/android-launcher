@@ -35,17 +35,32 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.reflect.KProperty1
 
 data class NewEventPageState(
-    val eventName: String="",
+    val eventName: String = "",
     val locationLink: String = "",
     val description: String = "",
-    val notifyBeforeTime: Int=30,
+    val notifyBeforeTime: Int = 30,
+    // Dates the user picked. These are the event days; for repeat they are the first occurrence
+    // (or every occurrence when repeating on specific week days).
     val selectedDates: Set<LocalDate> = emptySet<LocalDate>(),
-    val startTime: LocalTime= LocalTime.now().plusMinutes(30),
-    val endTime: LocalTime= LocalTime.now().plusHours(1),
+    val startTime: LocalTime = LocalTime.now().plusMinutes(30).withSecond(0).withNano(0),
+    val endTime: LocalTime = LocalTime.now().plusHours(1).withSecond(0).withNano(0),
+    /** When true the times are hidden and the event spans whole days. */
+    val isAllDay: Boolean = false,
     val eventCategory: EventCategory = EventCategory.EVENT,
     val selectedPriority: Priority = Priority.LOW,
-    val selectedRecurringType : EventRecurringType = EventRecurringType.SELECTED_DATES
-)
+    val selectedRecurringType: EventRecurringType = EventRecurringType.NONE,
+    /** How the event repeats: every N days/weeks. */
+    val repeatInterval: Int = 1,
+    /** Optional end of the repetition. Null means it repeats forever. */
+    val repeatUntil: LocalDate? = null,
+    /** Calendar (account) selected for this event. 0 means use the saved default. */
+    val selectedCalendarId: Long = 0L,
+) {
+    val sortedDates: List<LocalDate> get() = selectedDates.sorted()
+    val firstDate: LocalDate? get() = sortedDates.firstOrNull()
+    val lastDate: LocalDate? get() = sortedDates.lastOrNull()
+}
+
 sealed class NewEventPageEvent{
     data class UpdateEventPageValue<T>(val field: KProperty1<NewEventPageState,T>, val value: T): NewEventPageEvent()
     data object Idle: NewEventPageEvent()
@@ -81,6 +96,15 @@ class CalendarViewModel(private val calendarRepository: CalendarRepository, priv
     val hasCalendarPermission = calendarRepository.hasCalendarPermissions()
     private val _deviceCalendars = MutableStateFlow<List<DeviceCalendar>>(value = emptyList())
     val deviceCalendars = _deviceCalendars.asStateFlow()
+
+    /** Calendars/accounts available for creating events, loaded from the device provider. */
+    fun getWritableCalendars() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _deviceCalendars.value = calendarRepository.getDeviceCalendars()
+        }
+    }
+
+
 
     private val _todayEvents = MutableStateFlow<List<Event>>(emptyList())
     val todayEvents = _todayEvents.asStateFlow()
@@ -141,42 +165,28 @@ class CalendarViewModel(private val calendarRepository: CalendarRepository, priv
                         NewEventPageState::endTime -> currentState.copy(endTime = event.value as LocalTime)
                         NewEventPageState::notifyBeforeTime -> currentState.copy(notifyBeforeTime = event.value as Int)
                         NewEventPageState::eventCategory -> currentState.copy(eventCategory =  event.value as EventCategory)
-                        NewEventPageState::selectedRecurringType -> currentState.copy(selectedRecurringType =  event.value as EventRecurringType)
+                        NewEventPageState::selectedRecurringType -> currentState.copy(
+                            selectedRecurringType = event.value as EventRecurringType,
+                            // Clearing the repeat should not keep stale repeat settings around.
+                            repeatUntil = if (event.value == EventRecurringType.NONE) null else currentState.repeatUntil
+                        )
+                        NewEventPageState::isAllDay -> currentState.copy(isAllDay = event.value as Boolean)
+                        NewEventPageState::repeatInterval -> currentState.copy(repeatInterval = (event.value as Int).coerceAtLeast(1))
+                        NewEventPageState::repeatUntil -> currentState.copy(repeatUntil = event.value as LocalDate?)
+                        NewEventPageState::selectedCalendarId -> currentState.copy(selectedCalendarId = event.value as Long)
                         else -> currentState
                     }
                 }
             }
             is NewEventPageEvent.CreateEvent -> {
-                val finalDates= when(newEventPageState.value.selectedRecurringType){
-                    EventRecurringType.SPECIFIC_DAYS_WEEKLY -> {
-                        newEventPageState.value.selectedDates.map{dt->
-                            dt.dayOfWeek.toString()
-                        }
-                    }
-                    EventRecurringType.NONE,
-                    EventRecurringType.DAILY,
-                    EventRecurringType.WEEK_DAYS,
-                    EventRecurringType.SELECTED_DATES -> {
-                        newEventPageState.value.selectedDates.map { it.toString() }
-                    }
+                val state = newEventPageState.value
+                val validationError = validate(state)
+                if (validationError != null) {
+                    viewModelScope.launch { _newPageEvent.send(NewEventPageEvent.ShowErrorMessage(validationError)) }
+                    return
                 }
                 viewModelScope.launch {
-                    val (eventName, locationLink, description, notifyBeforeTime, _, startTime,endTime, eventCategory, selectedPriority, selectedRecurringType) = newEventPageState.value
-                    Toast.makeText(context, "Creating event $selectedPriority", Toast.LENGTH_SHORT).show()
-                    newEvent(
-                        e=Event(
-                            title =  newEventPageState.value.eventName,
-                            location =  newEventPageState.value.locationLink,
-                            description =  newEventPageState.value.description,
-                            minutesBefore =  newEventPageState.value.notifyBeforeTime,
-                            start = localTimeToMillisToday(newEventPageState.value.startTime),
-                            end = localTimeToMillisToday(newEventPageState.value.endTime),
-                            availability = 0,
-                            selectedRecurringType = newEventPageState.value.selectedRecurringType,
-                            isAllDay =  newEventPageState.value.selectedRecurringType == EventRecurringType.DAILY,
-                            customUri = "",
-                        )
-                    )
+                    newEvent(state = state)
                 }
             }
             else -> {}
@@ -208,13 +218,124 @@ class CalendarViewModel(private val calendarRepository: CalendarRepository, priv
         result.forEach { println(it) }
     }
 
-    suspend fun newEvent(e: Event){
+    /** Returns a user-facing error message, or null when the form is valid. */
+    private fun validate(state: NewEventPageState): String? = when {
+        state.eventName.isBlank() -> "Please add a title"
+        state.selectedDates.isEmpty() -> "Please select at least one date"
+        !state.isAllDay && state.selectedRecurringType != EventRecurringType.SELECTED_DATES && !state.endTime.isAfter(state.startTime) ->
+            "End time must be after the start time"
+        !state.isAllDay && state.selectedRecurringType == EventRecurringType.SELECTED_DATES &&
+                state.selectedDates.size == 1 && !state.endTime.isAfter(state.startTime) ->
+            "End time must be after the start time"
+        state.selectedRecurringType != EventRecurringType.NONE &&
+                state.repeatUntil != null && state.lastDate != null && state.repeatUntil.isBefore(state.lastDate) ->
+            "Repeat end date must be on or after the event date"
+        state.selectedRecurringType == EventRecurringType.SPECIFIC_DAYS_WEEKLY && state.selectedDates.isEmpty() ->
+            "Select the week days the event should repeat on"
+        else -> null
+    }
+
+    /**
+     * Converts the form state into calendar events.
+     *
+     * - All day events span whole days ([startOfDay, startOfNextDay)).
+     * - Repeating events use a single event with an RRULE on the first date.
+     * - Multi-day, non-repeating events create one event per selected date.
+     */
+    private fun buildEvents(state: NewEventPageState): List<Event> {
+        val zone = ZoneId.systemDefault()
+        val dates = state.sortedDates
+        val untilMillis = state.repeatUntil
+            ?.atStartOfDay(zone)?.toInstant()?.toEpochMilli()
+
+        fun startEndFor(date: LocalDate): Pair<Long, Long> =
+            if (state.isAllDay) {
+                date.atStartOfDay(zone).toInstant().toEpochMilli() to
+                        date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            } else {
+                date.atTime(state.startTime).atZone(zone).toInstant().toEpochMilli() to
+                        date.atTime(state.endTime).atZone(zone).toInstant().toEpochMilli()
+            }
+
+        // Weekly repeats keep the picked dates as the week days; the first date is the start.
+        val repeatWeekDays = if (state.selectedRecurringType == EventRecurringType.SPECIFIC_DAYS_WEEKLY) {
+            dates.map { it.dayOfWeek.value }.distinct()
+        } else {
+            emptyList()
+        }
+
+        fun base(date: LocalDate) = startEndFor(date).let { (start, end) ->
+            Event(
+                title = state.eventName.trim(),
+                location = state.locationLink.ifBlank { null },
+                description = state.description.ifBlank { null },
+                minutesBefore = if (state.isAllDay) null else state.notifyBeforeTime,
+                start = start,
+                end = end,
+                availability = 0,
+                isAllDay = state.isAllDay,
+                selectedRecurringType = state.selectedRecurringType,
+                customUri = "events/${state.eventCategory.name.lowercase()}",
+                repeatWeekDays = repeatWeekDays,
+                repeatUntil = untilMillis
+            )
+        }
+
+        val primaryDate = dates.first()
+        return when {
+            state.selectedRecurringType == EventRecurringType.NONE ||
+                    state.selectedRecurringType == EventRecurringType.SELECTED_DATES -> {
+                dates.map { base(it) }
+            }
+            else -> {
+                // One recurring event starting on the first date; RRULE is written by the repository.
+                listOf(base(primaryDate))
+            }
+        }
+    }
+
+    private suspend fun newEvent(state: NewEventPageState) {
         try {
-            calendarRepository.insertEvent(e)
+            if (!calendarRepository.hasCalendarPermissions()) {
+                _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Calendar permission is required to create events"))
+                return
+            }
+            if (calendarRepository.getDeviceCalendars().isEmpty()) {
+                _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("No writable calendar found on this device"))
+                return
+            }
+            val events = buildEvents(state)
+            events.forEach { event ->
+                val id = calendarRepository.insertEvent(
+                    event = event,
+                    calendarId = state.selectedCalendarId.takeIf { it > 0 }
+                )
+                if (id == null) {
+                    _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Could not create event"))
+                    return
+                }
+            }
             _newPageEvent.send(NewEventPageEvent.ShowSuccess)
-//            getTodayEvents()
-        }catch (e: Exception){
-            _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Could create event: ${e.message}"))
+        } catch (e: Exception) {
+            _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Could not create event: ${e.message}"))
+        }
+    }
+
+    /** Kept for callers that already build an [Event] themselves. */
+    suspend fun newEvent(e: Event) {
+        try {
+            if (!calendarRepository.hasCalendarPermissions()) {
+                _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Calendar permission is required to create events"))
+                return
+            }
+            val id = calendarRepository.insertEvent(e)
+            if (id == null) {
+                _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Could not create event"))
+            } else {
+                _newPageEvent.send(NewEventPageEvent.ShowSuccess)
+            }
+        } catch (e: Exception) {
+            _newPageEvent.send(NewEventPageEvent.ShowErrorMessage("Could not create event: ${e.message}"))
         }
     }
     fun updateEvent(e: Event){
