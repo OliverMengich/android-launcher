@@ -1,12 +1,18 @@
 package com.planara.android_launcher.presentation.screens.home.settings
 
+import TimePickerDialog
 import android.accessibilityservice.AccessibilityService
+import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import android.text.TextUtils
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,23 +28,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,10 +70,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -80,13 +99,24 @@ import com.planara.android_launcher.ui.theme.uncheckedTrackColor
 import com.planara.android_launcher.utils.appFonts
 import com.planara.android_launcher.utils.dateFormatOptions
 import com.planara.android_launcher.utils.timeFormatOptions
-import com.google.firebase.Firebase
-import com.google.firebase.auth.auth
+import com.planara.android_launcher.LocalUserSettings
+import com.planara.android_launcher.domain.models.BlockType
+import com.planara.android_launcher.domain.models.UsageTime
+import com.planara.android_launcher.presentation.components.SharedDialog
+import com.planara.android_launcher.presentation.components.rememberDialogState
+import com.planara.android_launcher.presentation.screens.home.home.apps.BlockState
+
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
+sealed interface DialogStep {
+    data object StepOne : DialogStep
+    data class StepTwo(val details: String) : DialogStep
+    data object Success : DialogStep
+}
+
 @Composable
-fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel = koinViewModel(), viewModel: SettingsViewModel = koinViewModel(),  navigateToBlockingAppPage:(App)->Unit, navigateHome:()->Unit) {
+fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel = koinViewModel(), viewModel: SettingsViewModel = koinViewModel(),  navigateToBlockingAppPage:(App)->Unit, navigateHome:()->Unit, navigateToFocusModePage:()->Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val localManagerData by sharedViewModel.localManagerData.collectAsStateWithLifecycle()
@@ -115,26 +145,99 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
         sharedViewModel.getHiddenApps()
     }
 
-    val user = Firebase.auth.currentUser
-
     var showChildren by remember { mutableStateOf(false) }
 
-    LazyColumn(modifier = modifier.fillMaxSize().padding(bottom = 40.dp)) {
-        item {
-            Column(Modifier.fillMaxWidth().padding(top = 0.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (user?.photoUrl != null) {
-                    AsyncImage(
-                        model = user.photoUrl,
-                        contentDescription = "User profile photo",
-                        modifier = Modifier
-                            .size(200.dp)
-                            .clip(CircleShape)
-                            .border(
-                                width = 1.dp,
-                                color = Color.Transparent,
-                                shape = CircleShape
+    fun showAccessibilityDisclosureDialog(onAccept: () -> Unit) {
+        AlertDialog.Builder(context)
+            .setTitle("Accessibility Permission Required")
+            .setMessage(
+                "Planara Launcher uses the Accessibility Service API to detect active URLs in supported web browsers. " +
+                        "\n\nWhy this is needed:\n" +
+                        "• To identify when a blocked domain or distracting website is opened during Focus Mode.\n" +
+                        "• To redirect you away from restricted sites to help you stay focused.\n\n" +
+                        "Privacy Notice:\n" +
+                        "• URL data is processed locally on your device in real-time.\n" +
+                        "• We do not collect, store, or transmit your browsing history, personal data, or passwords."
+            )
+            .setPositiveButton("Agree & Enable") { _, _ ->
+                onAccept()
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            }
+            .setNegativeButton("Not Now", null)
+            .setCancelable(false)
+            .show()
+    }
+    val dialogState = rememberDialogState()
+    SharedDialog(state = dialogState,modifier = Modifier.fillMaxWidth())
+    val settings = LocalUserSettings.current
+    // 2. Registers the photo picker activity launcher
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        scope.launch {
+            uri.let {
+                if (it != null) {
+                    Toast.makeText(context, "Selected photo: $it", Toast.LENGTH_SHORT).show()
+                    context.dataStore.updateData { lc->
+                        lc.copy(
+                            displaySettings = lc.displaySettings.copy(
+                                profileImagePath = uri?.toString() ?: ""
                             )
-                    )
+                        )
+                    }
+                } else {
+                    Toast.makeText(context, "No photo selected", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    LazyColumn(modifier.fillMaxSize().padding(bottom = 40.dp)) {
+        item {
+            Column(Modifier
+                .fillMaxWidth()
+                .padding(top = 0.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (settings.profileImagePath.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier.size(150.dp) // Outer container bounds match the image
+                    ) {
+                        AsyncImage(
+                            model = settings.profileImagePath,
+                            contentDescription = "User profile photo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .border(
+                                    width = 2.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    shape = CircleShape
+                                )
+                        )
+
+                        IconButton(
+                            onClick = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(20.dp) // Generous touch target
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Change profile photo",
+                                modifier = Modifier.size(15.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 } else {
                     Box(
                         modifier = Modifier
@@ -150,20 +253,22 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                             .background(Color.Gray)
                     )
                 }
-
-                if (user == null) {
+                if (settings.profileImagePath.isEmpty()) {
                     Button(
                         onClick = {
-                            val intent = Intent(context, OnboardingActivity::class.java)
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            intent.putExtra("active_page", 1)
-                            context.startActivity(intent)
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+//                            val intent = Intent(context, OnboardingActivity::class.java)
+//                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                            intent.putExtra("active_page", 1)
+//                            context.startActivity(intent)
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onBackground,
                         )
                     ) {
-                        Text(text = "Sign Up / Login")
+                        Text(text = "Select Display Photo")
                     }
                 }
             }
@@ -180,14 +285,6 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                 fontSize = 25.sp
             )
             Column(Modifier.fillMaxWidth()) {
-                if (user != null) {
-                    AccordionItem(title = "Profile") {
-                        Text(
-                            text = user.displayName.toString(),
-                            modifier = Modifier.padding(horizontal = 20.dp)
-                        )
-                    }
-                }
                 AccordionItem(title = "Theme") {
                     RadioButtonSingleSelection(
                         setItem = localManagerData.displaySettings.theme,
@@ -210,7 +307,9 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                                 Icon(
                                     painter = painterResource(id = R.drawable.moon),
                                     contentDescription = "Dark icon",
-                                    modifier = Modifier.size(20.dp).rotate(180f),
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .rotate(180f),
                                     tint = MaterialTheme.colorScheme.onBackground
                                 )
                                 Text("Dark Mode")
@@ -334,94 +433,83 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showChildren = !showChildren }
+                    .clickable {
+                        dialogState.show { controller->
+                            Column(Modifier) {
+                                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Hidden Apps", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier=Modifier.padding(10.dp))
+                                    Icon(imageVector = Icons.Default.Close,modifier = Modifier.clickable{controller.dismiss()}.rotate(degrees = -90f),contentDescription = null)
+                                }
+                                HorizontalDivider()
+                                if (hiddenApps.isEmpty()) {
+                                    Box(Modifier.height(200.dp).fillMaxWidth().padding(10.dp), contentAlignment = Alignment.Center) {
+                                        Text("No hidden apps", Modifier.padding(start = 20.dp))
+                                    }
+                                } else {
+                                    Column(Modifier.padding(10.dp)) {
+                                        hiddenApps.forEach { ap ->
+                                            AppItem(
+                                                onClick = {
+                                                    sharedViewModel.launchApp(app=ap)
+                                                },
+                                                ap = ap,
+                                                onHideApp = {
+                                                    scope.launch {
+                                                        sharedViewModel.hideUnhideAppFc(app=ap, false)
+                                                    }
+                                                },
+                                                onUninstallApp = {
+                                                    val intent = Intent(Intent.ACTION_DELETE)
+                                                    intent.data = "package:${ap.packageName}".toUri()
+                                                    context.startActivity(intent)
+                                                },
+                                                onBlockApp = {
+                                                    navigateToBlockingAppPage(ap)
+                                                },
+                                                onPinApp = {
+                                                    Toast.makeText(context, "You cannot pin a hidden app, unhide first", Toast.LENGTH_SHORT).show()
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     .padding(start = 20.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("Hidden Apps", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_down),
+                    imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(20.dp)
-                        .rotate(if (showChildren) 0f else -90f),
+                        .size(20.dp),
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-            AnimatedVisibility(visible = showChildren, modifier = Modifier.padding(top = 5.dp,bottom=5.dp,start = 20.dp)) {
-                if (hiddenApps.isEmpty()) {
-                    Text("No hidden apps", Modifier.padding(start = 20.dp))
-                } else {
-                    Column(Modifier) {
-                        hiddenApps.forEach { ap ->
-                            AppItem(
-                                onClick = {
-                                    sharedViewModel.launchApp(app=ap)
-                                },
-                                ap = ap,
-                                onHideApp = {
-                                    scope.launch {
-                                        sharedViewModel.hideUnhideAppFc(app=ap, false)
-                                    }
-                                },
-                                onUninstallApp = {
-                                    val intent = Intent(Intent.ACTION_DELETE)
-                                    intent.data = "package:${ap.packageName}".toUri()
-                                    context.startActivity(intent)
-                                },
-                                onBlockApp = {
-                                    navigateToBlockingAppPage(ap)
-                                },
-                                onPinApp = {
-                                    Toast.makeText(context, "You cannot pin a hidden app, unhide first", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                    }
-                }
+
+        }
+        item {
+            // Focus session details live on the Focus Mode page only.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { navigateToFocusModePage() }
+                    .padding(start = 20.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Focus Mode", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
         }
-//        item {
-//            AccordionItem(title = "Focus Mode") {
-//                Column(Modifier.padding(horizontal = 10.dp),horizontalAlignment = Alignment.CenterHorizontally) {
-//                    if(!isFocusMode){
-//                        Text(
-//                            text = "Focus Mode helps you take control of your time by minimizing distractions and limiting phone use while you work, study, or rest.\n"+
-//                                    "When Focus Mode is on, your phone stays locked for everything except essential phone calls — no apps, no notifications, just uninterrupted focus. Once a session starts, you can’t switch it off until the timer ends, helping you stay fully committed to your goals.\n" +
-//                                    "Set custom focus sessions, track your progress, and build mindful digital habits that last. Whether it’s a quick study session or a deep work block, Focus Mode keeps you centered on what truly matters."
-//                        )
-//                        DateTimePickerItem(
-//                            callBack = {isDt->
-//                                isoDateTime = isDt
-//                            },
-//                            datePickerHeadLine = {
-//                                Text(
-//                                    text = "Focus until ${formatIsoTimeToFriendly(input = isoDateTime)}.",
-//                                    fontSize = 20.sp,
-//                                    fontWeight = FontWeight.Medium,
-//                                    textAlign = TextAlign.Center
-//                                )
-//                            }
-//                        )
-//                        Button(
-//                            modifier=Modifier.fillMaxWidth(.5f).padding(horizontal=4.dp),
-//                            onClick = {
-//                                viewModel.enableFocusModeHandler(isoDateTime)
-//                                navigateHome()
-//                            },
-//                            colors = ButtonDefaults.buttonColors(
-//                                containerColor = MaterialTheme.colorScheme.onBackground,
-//                            ),
-//                        ) {
-//                            Text(text = "Enable Focus Mode", color = MaterialTheme.colorScheme.background,)
-//                        }
-//                    }else{
-//                        Text(text = "Focus Mode is already enabled")
-//                    }
-//                }
-//            }
-//        }
         item{
             AccordionItem(title="Precision Mode") {
                 Column(Modifier.padding(horizontal=10.dp)){
@@ -431,13 +519,75 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
                         title = if(isAccessibilityEnabled) "Disable" else "Enable",
                         checked = isAccessibilityEnabled,
                         handleSwitchToggled = {
-                            val precisionIntent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                            .setTitle("Accessibility Permission Required")
+//                            .setMessage(
+//                                "Planar Launcher uses the Accessibility Service API to detect active URLs in supported web browsers. " +
+//                                        "\n\nWhy this is needed:\n" +
+//                                        "• To identify when a blocked domain or distracting website is opened during Focus Mode.\n" +
+//                                        "• To redirect you away from restricted sites to help you stay focused.\n\n" +
+//                                        "Privacy Notice:\n" +
+//                                        "• URL data is processed locally on your device in real-time.\n" +
+//                                        "• We do not collect, store, or transmit your browsing history, personal data, or passwords."
+//
+                            dialogState.show { controller->
+                                Column() {
+                                    Text(
+                                        text="Accessibility permission Required",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(10.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    HorizontalDivider()
+                                    Text(
+                                        text = "Planara Launcher uses the Accessibility Service API to detect active URLs in supported web browsers. " +
+                                        "\n\nWhy this is needed:\n" +
+                                        "• To identify when a blocked domain or distracting website is opened during Focus Mode.\n" +
+                                        "• To redirect you away from restricted sites to help you stay focused.\n\n" +
+                                        "Privacy Notice:\n" +
+                                        "• URL data is processed locally on your device in real-time.\n" +
+                                        "• We do not collect, store, or transmit your browsing history, personal data, or passwords.",
+                                        textAlign = TextAlign.Start,
+                                        modifier = Modifier.padding(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                controller.dismiss()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.onBackground,
+                                            )
+                                        ) {
+                                            Text("Cancel", color = MaterialTheme.colorScheme.background)
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Button(
+                                            onClick = {
+                                                controller.dismiss()
+                                                isAccessibilityEnabled = isAccessibilityServiceEnabled(context, service=MyAccessibilityService::class.java)
+                                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                                context.startActivity(intent)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.onBackground,
+                                            )
+                                        ) {
+                                            Text("Enable", color = MaterialTheme.colorScheme.background)
+                                        }
+                                    }
+                                }
                             }
-                            Toast.makeText(context, "Please enable Accessibility permission", Toast.LENGTH_LONG).show()
-                            context.startActivity(precisionIntent)
-                            isAccessibilityEnabled = isAccessibilityServiceEnabled(context, service=MyAccessibilityService::class.java)
-
+//                            showAccessibilityDisclosureDialog {
+//                                Toast.makeText(context, "Please enable Accessibility permission", Toast.LENGTH_LONG).show()
+//                                isAccessibilityEnabled = isAccessibilityServiceEnabled(context, service=MyAccessibilityService::class.java)
+//                            }
                         }
                     )
                 }
@@ -445,10 +595,15 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
         }
         item{
             Column(
-                Modifier.fillMaxWidth().padding(vertical = 10.dp).clickable { viewModel.handleNavigateToSettings() }
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp)
+                    .clickable { viewModel.handleNavigateToSettings() }
             ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp, top = 7.dp, bottom = 7.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 18.dp, top = 7.dp, bottom = 7.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -462,33 +617,60 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
             }
         }
         item {
-            AccordionItem(title="Exit Planara Launcher") {
-                Column {
-                    Text(text="Do you wish to exit Planara Launcher? You can uninstall Planara Launcher and use the default launcher or choose a different launcher.")
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement = Arrangement.spacedBy(10.dp),verticalAlignment = Alignment.CenterVertically){
-                        Button(
-                            onClick = {
-                                val packageName = context.packageName
-                                val intent = Intent(Intent.ACTION_DELETE)
-                                intent.data = "package:${packageName}".toUri()
-                                context.startActivity(intent)
-                            },
-                            Modifier.weight(.6f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        ){
-                            Text(text = "Uninstall")
-                        }
-                        Button(
-                            onClick = { viewModel.handleNavigateToSettings() },
-                            Modifier.weight(.6f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline)
-                        ){
-                            Text(text = "Exit")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        dialogState.show { controller->
+                            Column {
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Exit Planara Launcher", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier=Modifier.padding(10.dp))
+                                    Icon(imageVector = Icons.Default.Close,modifier = Modifier.clickable{controller.dismiss()},contentDescription = null)
+                                }
+                                HorizontalDivider()
+                                Spacer(Modifier.height(5.dp))
+                                Text(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 10.dp),
+                                    text= "Do you wish to exit Planara Launcher? You can uninstall Planara Launcher and use the default launcher or choose a different launcher."
+                                )
+                                HorizontalDivider()
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 10.dp),horizontalArrangement = Arrangement.spacedBy(10.dp),verticalAlignment = Alignment.CenterVertically){
+                                    Button(
+                                        onClick = {
+                                            val packageName = context.packageName
+                                            val intent = Intent(Intent.ACTION_DELETE)
+                                            intent.data = "package:${packageName}".toUri()
+                                            context.startActivity(intent)
+                                        },
+                                        Modifier.weight(.6f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    ){
+                                        Text(text = "Uninstall")
+                                    }
+                                    Button(
+                                        onClick = { viewModel.handleNavigateToSettings() },
+                                        Modifier.weight(.6f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline)
+                                    ){
+                                        Text(text = "Exit")
+                                    }
+                                }
+                            }
                         }
                     }
-                }
+                    .padding(start = 20.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Exit Planara Launcher", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
         }
     }
@@ -498,7 +680,13 @@ fun SettingsPage(modifier: Modifier = Modifier, sharedViewModel: SharedViewModel
 fun AccordionItem(title: String,children: @Composable () ->Unit){
     var showChildren by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth().clickable { showChildren = !showChildren }.padding(start = 20.dp, end = 18.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween){
+        Row(modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showChildren = !showChildren }
+            .padding(start = 20.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ){
             Text(text=title,modifier=Modifier.padding(vertical = 8.dp),fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Icon(
                 painter = painterResource(id = R.drawable.ic_down),
@@ -506,7 +694,13 @@ fun AccordionItem(title: String,children: @Composable () ->Unit){
                 modifier = Modifier
                     .size(20.dp)
                     .clickable { showChildren = !showChildren }
-                    .rotate(degrees = if (showChildren) { 0f } else { -90f }),
+                    .rotate(
+                        degrees = if (showChildren) {
+                            0f
+                        } else {
+                            -90f
+                        }
+                    ),
                 tint = MaterialTheme.colorScheme.onBackground
             )
         }
@@ -520,7 +714,9 @@ fun AccordionItem(title: String,children: @Composable () ->Unit){
 fun SwitchItem(modifier: Modifier=Modifier,title:String,checked: Boolean,handleSwitchToggled:(Boolean)->Unit={}){
     Column(modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ){

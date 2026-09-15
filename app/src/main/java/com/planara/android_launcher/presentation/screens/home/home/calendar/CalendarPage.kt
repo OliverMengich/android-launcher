@@ -1,6 +1,7 @@
 package com.planara.android_launcher.presentation.screens.home.home.calendar
 
 import android.Manifest
+import android.graphics.drawable.Icon
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -34,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
@@ -153,8 +155,8 @@ fun CalendarPage(
             val isGranted = permissions.values.all { it }
             if (isGranted) {
                 Toast.makeText(context, "Calendar permission granted", Toast.LENGTH_SHORT).show()
-                permissionStep = PermissionStep.CALENDAR
-//                navigateToNextPage()
+                // Don't set a default account here; it is selected per event on the new-event page.
+                permissionStep = null
             } else {
                 Toast.makeText(context, "calendar permission denied", Toast.LENGTH_SHORT).show()
                 // You can still navigate or show a dialog explaining why it's needed
@@ -248,7 +250,23 @@ fun CalendarPage(
 //                fontWeight = FontWeight.Medium,
 //                fontSize = 13.sp
 //            )
-            Text(text = formatGivenDateToRequiredFormat(givenDate = startDate, dateFormat = localManagerData.displaySettings.dateFormat), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(text = formatGivenDateToRequiredFormat(givenDate = startDate, dateFormat = localManagerData.displaySettings.dateFormat), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                OutlinedIconButton(
+                    modifier = Modifier.size(25.dp).padding(0.dp),
+                    onClick = {
+                        viewModel.getDateEvents(startDate)
+                    },
+                    content = {
+                        Icon(
+                            imageVector=Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                )
+            }
             WeekPager(
                 Modifier.padding(vertical = 10.dp),
                 weeks = weeks,

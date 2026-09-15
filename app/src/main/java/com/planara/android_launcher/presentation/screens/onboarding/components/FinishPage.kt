@@ -60,8 +60,10 @@ fun FinishPage(
             val isGranted = permissions.values.all { it }
             if (isGranted) {
                 Toast.makeText(context, "Calendar permission granted", Toast.LENGTH_SHORT).show()
-                permissionStep = PermissionStep.CALENDAR
-//                navigateToNextPage()
+                // No default calendar is chosen for the user: the account is picked per event on the
+                // new-event page, so a saved default is genuinely optional work.
+                permissionStep = null
+                showCalendarDialog = false
             } else {
                 Toast.makeText(context, "calendar permission denied", Toast.LENGTH_SHORT).show()
                 // You can still navigate or show a dialog explaining why it's needed
@@ -86,6 +88,8 @@ fun FinishPage(
             },
             permissionStep = permissionStep,
             deviceCalendars = deviceCalendars,
+            // Selecting a default calendar is optional: it no longer happens automatically when
+            // the permission is granted. The user picks the account per event on the new-event page.
             onSkipSelectCalendar = {
                 permissionStep = null
                 showCalendarDialog = false
