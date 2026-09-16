@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class DisplaySettings(
-    val autoOpenKeyboard: Boolean = false,
+    val autoOpenKeyboard: Boolean = true,
+    val profileImagePath: String = "",
     val theme: String="SYSTEM",
     val currentFont: AppFonts = AppFonts.Default,
     val timeFormat: String = "HH:mm",

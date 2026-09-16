@@ -53,18 +53,7 @@ fun OnboardingPage(
     val isLoggedInUser = context.dataStore.data.collectAsStateWithLifecycle(initialValue = LocalManager()).value.isLoggedIn
 //    val isLoggedInUser = sharedPref.getBoolean("IS_AUTHENTICATED",false)
 
-    val pagerState = rememberPagerState(initialPage = activePage) {
-        6
-    }
-    val overlayPermissionLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) {
-        if (Settings.canDrawOverlays(context)){
-            Toast.makeText(context,"Overlay permission granted",Toast.LENGTH_SHORT).show()
-            val launchIntent= Intent(context, OnboardingActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-            context.startActivity(launchIntent)
-        }
-    }
+    val pagerState = rememberPagerState(pageCount = {6}, initialPage = activePage)
     LaunchedEffect(viewModel.finishNav) {
         viewModel.finishNav.collectLatest {
             if (it){
@@ -86,30 +75,59 @@ fun OnboardingPage(
                         }
                     )
                 }
+//                1->{
+//                    SignInSignUp(
+//                        navigateToPrev = {
+//                            scope.launch {
+//                                pagerState.animateScrollToPage(page = pagerState.currentPage-1)
+//                            }
+//                        },
+//                        loginWithEmailAndPassword = { email,password->
+//                            viewModel.loginWithEmailAndPassword(email,password)
+//                        },
+//                        navigateToNextPage = {
+//                            if (isLoggedInUser){
+//                                val startIntent = Intent(context, MainActivity::class.java).apply {
+//                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+//                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+//                                }
+//                                context.startActivity(startIntent)
+//                            }else{
+//                                scope.launch {
+//                                    pagerState.animateScrollToPage(page = pagerState.currentPage+1)
+//                                }
+//                            }
+//                        }
+//                    )
+//                }
                 1->{
-                    SignInSignUp(
+                    OverlayPermissionsPage(
+                        isActive=pagerState.currentPage==1,
                         navigateToPrev = {
                             scope.launch {
                                 pagerState.animateScrollToPage(page = pagerState.currentPage-1)
                             }
                         },
-                        loginWithEmailAndPassword = { email,password->
-                            viewModel.loginWithEmailAndPassword(email,password)
-                        },
                         navigateToNextPage = {
-                            if (isLoggedInUser){
-                                val startIntent = Intent(context, MainActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            if (Settings.canDrawOverlays(context)) {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(page = pagerState.currentPage + 1)
                                 }
-                                context.startActivity(startIntent)
                             }else{
+                                Toast.makeText(context,"Please grant overlay permission to proceed.", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        requestOverlayPermission = {
+                            if (Settings.canDrawOverlays(context)){
+                                Toast.makeText(context,"Permission already granted.", Toast.LENGTH_LONG).show()
                                 scope.launch {
                                     pagerState.animateScrollToPage(page = pagerState.currentPage+1)
                                 }
+                            }else {
+                                viewModel.requestOverlayPermission()
                             }
-                        }
+                        },
                     )
                 }
                 2->{
@@ -139,42 +157,12 @@ fun OnboardingPage(
                                 viewModel.requestUsageStatsPermission()
                             }
                         },
-                        hasUsageAccess= viewModel.hasUsageAccess(context)
+                        hasUsageAccess = viewModel.hasUsageAccess(context)
                     )
                 }
                 3->{
-                    OverlayPermissionsPage(
-                        isActive=pagerState.currentPage==3,
-                        navigateToPrev = {
-                            scope.launch {
-                                pagerState.animateScrollToPage(page = pagerState.currentPage-1)
-                            }
-                        },
-                        navigateToNextPage = {
-
-                            if (Settings.canDrawOverlays(context)) {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(page = pagerState.currentPage + 1)
-                                }
-                            }else{
-                                Toast.makeText(context,"Please grant overlay permission to proceed.", Toast.LENGTH_LONG).show()
-                            }
-                        },
-                        requestOverlayPermission = {
-                            if (Settings.canDrawOverlays(context)){
-                                Toast.makeText(context,"Permission already granted.", Toast.LENGTH_LONG).show()
-                                scope.launch {
-                                    pagerState.animateScrollToPage(page = pagerState.currentPage+1)
-                                }
-                            }else {
-                                viewModel.requestOverlayPermission()
-                            }
-                        },
-                    )
-                }
-                4->{
                     DefaultLauncherPermissionPage(
-                        isActive=pagerState.currentPage==4,
+                        isActive=pagerState.currentPage==3,
                         navigateToPrev = {
                             scope.launch {
                                 pagerState.animateScrollToPage(page = pagerState.currentPage-1)
@@ -190,7 +178,7 @@ fun OnboardingPage(
                         },
                     )
                 }
-                5->{
+                4->{
                     FinishPage(
                         navigateToNextPage = {
                             scope.launch {
@@ -206,7 +194,7 @@ fun OnboardingPage(
                         requestDeviceCalendars = {
                             viewModel.getDeviceCalendars()
                         },
-                        isActive = pagerState.currentPage == 5,
+                        isActive = pagerState.currentPage == 4,
                         deviceCalendars = viewModel.deviceCalendars.collectAsStateWithLifecycle(initialValue = emptyList()).value,
                         navigateToPrev = {
                             scope.launch {

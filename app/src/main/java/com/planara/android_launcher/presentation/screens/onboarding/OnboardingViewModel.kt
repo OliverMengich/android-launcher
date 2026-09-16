@@ -4,32 +4,27 @@ import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.core.net.toUri
-import androidx.credentials.provider.Action
-import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.viewModelScope
-import com.planara.android_launcher.LOGGED_IN_USER_NAME
 import com.planara.android_launcher.dataStore
-import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
-import com.google.firebase.auth.actionCodeSettings
-import com.google.firebase.auth.auth
+import com.planara.android_launcher.OnboardingActivity
 import com.planara.android_launcher.domain.models.DeviceCalendar
 import com.planara.android_launcher.domain.repository.CalendarRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 
 class OnboardingViewModel(
     private val calendarRepository: CalendarRepository,
@@ -41,6 +36,9 @@ class OnboardingViewModel(
     val finishNav = _finishNav.receiveAsFlow()
     private val _deviceCalendars = MutableStateFlow<List<DeviceCalendar>>(emptyList())
     val deviceCalendars = _deviceCalendars.asStateFlow()
+
+    private var pollingJob: Job? = null
+
     fun getDeviceCalendars(){
         viewModelScope.launch {
             val cals = calendarRepository.getDeviceCalendars()
@@ -49,10 +47,21 @@ class OnboardingViewModel(
     }
     fun requestUsageStatsPermission(){
         if (!hasUsageAccess(context)) {
-            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+            val intent = Intent(
+                Settings.ACTION_USAGE_ACCESS_SETTINGS,
+                "package:${context.packageName}".toUri()
+            ).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                val fallbackIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(fallbackIntent)
+            }
+            startPermissionPolling { hasUsageAccess(context) }
         }
     }
     fun isDefaultLauncher(context: Context): Boolean {
@@ -79,8 +88,24 @@ class OnboardingViewModel(
             )
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             context.startActivity(intent)
+            startPermissionPolling { Settings.canDrawOverlays(context) }
         }
     }
+
+    private fun startPermissionPolling(checkPermission: () -> Boolean) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (!checkPermission()) {
+                delay(1000)
+            }
+            // Bring app to front
+            val intent = Intent(context, OnboardingActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            }
+            context.startActivity(intent)
+        }
+    }
+
     fun requestSetDefaultLauncher(){
         val intent = Intent(Settings.ACTION_SETTINGS).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

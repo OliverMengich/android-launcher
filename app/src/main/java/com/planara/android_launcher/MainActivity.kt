@@ -16,7 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -58,6 +60,13 @@ val PHONE_APP_PACKAGE = stringPreferencesKey(name="phone_app")
 val CAMERA_APP_PACKAGE = stringPreferencesKey(name="camera_app")
 val CLOCK_APP_PACKAGE = stringPreferencesKey(name="clock_app")
 
+data class AppSettingsState(
+    val profileImagePath: String,
+    val localManager: LocalManager,
+)
+val LocalUserSettings = compositionLocalOf<AppSettingsState> {
+    error("LocalUserSettings not provided")
+}
 class MainActivity : ComponentActivity() {
     private lateinit var packagesReceiver: PackagesBroadCastReceiver
     private lateinit var batteryReceiver: BatteryReceiver
@@ -88,12 +97,22 @@ class MainActivity : ComponentActivity() {
                 "Dark" -> true
                 else -> false
             }
-
-            AndroidlauncherTheme(darkTheme = isDarkMode,defaultFont = localManagerData.displaySettings.currentFont) {
-                Scaffold(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.background)) { padding->
-                    HomeNavigator(padding=padding)
+            val appSettingsState = remember(localManagerData) {
+                AppSettingsState(
+                    profileImagePath = localManagerData.displaySettings.profileImagePath,
+                    localManager = localManagerData
+                )
+            }
+            CompositionLocalProvider(
+                LocalUserSettings provides appSettingsState,
+            ){
+                AndroidlauncherTheme(darkTheme = isDarkMode,defaultFont = localManagerData.displaySettings.currentFont) {
+                    Scaffold(modifier = Modifier.fillMaxSize().background(color = MaterialTheme.colorScheme.background)) { padding->
+                        HomeNavigator(padding=padding)
+                    }
                 }
             }
+
         }
     }
 

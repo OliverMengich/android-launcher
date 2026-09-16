@@ -80,9 +80,11 @@ fun DateTimePickerItem(modifier: Modifier = Modifier, datePickerHeadLine: @Compo
         BasicAlertDialog(
             onDismissRequest = {showTimeDialog=false},
             content = {
-                Column (horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier=Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)) {
+                Column (
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier=Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
+                ) {
                     TimePicker(state = timePickerState)
                     Spacer(Modifier.height(16.dp))
                     Button(
