@@ -8,14 +8,14 @@ plugins {
 
 android {
     namespace = "com.planara.android_launcher"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.planara.android_launcher"
         minSdk = 28
-        targetSdk = 35
-        versionCode = 4
-        versionName = "1.1.1"
+        targetSdk = 36
+        versionCode = 19
+        versionName = "2.1.0"
 
         val apiKey = project.findProperty("API_KEY") as String? ?: "default_key"
         val secretToken = project.findProperty("SECRET_TOKEN") as String? ?: ""

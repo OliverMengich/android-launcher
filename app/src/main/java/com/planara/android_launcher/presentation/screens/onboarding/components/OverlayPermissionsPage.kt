@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,7 +53,7 @@ fun OverlayPermissionsPage(requestOverlayPermission: ()-> Unit,isActive: Boolean
                         Box(
                             modifier = Modifier.size(40.dp)
                                 .background(
-                                    color=if (idx==0 || idx==1) MaterialTheme.colorScheme.onBackground else Color.Transparent,
+                                    color= if (idx==0) MaterialTheme.colorScheme.onBackground else Color.Transparent,
                                     shape = RoundedCornerShape(40.dp)
                                 )
                                 .border(
@@ -63,7 +62,7 @@ fun OverlayPermissionsPage(requestOverlayPermission: ()-> Unit,isActive: Boolean
                                 ),
                             contentAlignment = Alignment.Center
                         ){
-                            if (idx==0 || idx==1) {
+                            if (idx==0) {
                                 Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = if (isSystemInDarkTheme()) Color.Black else Color.White)
                             }
                         }

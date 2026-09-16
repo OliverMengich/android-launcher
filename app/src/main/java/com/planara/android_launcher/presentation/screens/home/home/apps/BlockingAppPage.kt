@@ -1,5 +1,6 @@
 package com.planara.android_launcher.presentation.screens.home.home.apps
 
+import TimePickerDialog
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -100,7 +101,7 @@ data class BlockState(
 @RequiresApi(Build.VERSION_CODES.Q)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateBack:()->Unit,  modifier: Modifier= Modifier, packageName: String){
+fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateBack:()->Unit, packageName: String, modifier: Modifier= Modifier ){
 
     var pkgNm by rememberSaveable(packageName) {
         mutableStateOf(packageName)
@@ -131,10 +132,12 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
 
     )
     val blockType = remember {
-        mutableStateOf(value = BlockState(
-            blockType = BlockType.NORMAL,
-            usageTimes = emptyList()
-        ))
+        mutableStateOf(
+            value = BlockState(
+                blockType = BlockType.NORMAL,
+                usageTimes = emptyList()
+            )
+        )
     }
     val context= LocalContext.current
     val appStats = viewModel.appStats.collectAsState().value
@@ -184,11 +187,62 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
             showTimeDialog = false
         }
     }
+    if (showBlockTimeDialog && blockType.value.blockType === BlockType.NOT_USE) {
+        TimePickerDialog(
+            onDismissRequest = {
+                showBlockTimeDialog = false
+            },
+            onTimeRangePicked = { startH, startM, endH, endM ->
+                println("Range selected: $startH:$startM to $endH:$endM")
+                val current = LocalTime.of(startH, startM)
+                val endTime = LocalTime.of(endH,endM)
+
+                blockType.value = blockType.value.copy(
+                    usageTimes = blockType.value.usageTimes + UsageTime(
+                        startTime = current.toString(),
+                        endTime = endTime.toString()
+                    )
+                )
+                showBlockTimeDialog = false
+            }
+        )
+    }
+    if (showBlockTimeDialog && blockType.value.blockType === BlockType.USE_BETWEEN) {
+        TimePickerDialog(
+            mode =  TimePickerMode.START_ONLY,
+            onDismissRequest = {
+                blockType.value = BlockState(
+                    blockType = BlockType.NORMAL,
+                    usageTimes = emptyList()
+                )
+                showBlockTimeDialog = false
+            },
+            onTimePicked = { hour, minute ->
+                val usageTimes = blockType.value.usageTimes.toMutableList()
+                if (usageTimes.size == 6){
+                    Toast.makeText(context,"You can only use 6 hours a day", Toast.LENGTH_SHORT).show()
+                }else{
+                    println("Single time selected: $hour:$minute")
+                    val current = LocalTime.of(hour, minute)
+                    val next = current.plusHours(1)
+                    val endTime = LocalTime.of(next.hour,next.minute)
+
+                    blockType.value = blockType.value.copy(
+                        usageTimes = blockType.value.usageTimes + UsageTime(
+                            startTime = current.toString(),
+                            endTime = endTime.toString()
+                        )
+                    )
+                }
+                showBlockTimeDialog = false
+            }
+        )
+    }
     fun onBlockTimePicked() {
         if (blockType.value.blockType === BlockType.USE_BETWEEN){
             val usageTimes = blockType.value.usageTimes.toMutableList()
-            if (usageTimes.size==3){
-                Toast.makeText(context,"You can only use 3 times a day", Toast.LENGTH_SHORT).show()
+            if (usageTimes.size == 3){
+                Toast.makeText(context,"You can only use 6 hours a day", Toast.LENGTH_SHORT).show()
                 return
             }
         }
@@ -273,40 +327,40 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
             }
         )
     }
-    if(showBlockTimeDialog){
-        BasicAlertDialog(
-            onDismissRequest = {showBlockTimeDialog =false},
-            content = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier=Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background)
-                ) {
-                    Text("Select Start Time",modifier=Modifier.padding(vertical = 8.dp),fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    TimePicker(state = timePickerState)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = {onBlockTimePicked()},
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.onBackground,
-                        ),
-                        content = {
-                            Text(
-                                text="OK",
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(10.dp),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.background,
-                            )
-                        }
-                    )
-                }
-            }
-        )
-    }
+//    if(showBlockTimeDialog){
+//        BasicAlertDialog(
+//            onDismissRequest = {showBlockTimeDialog =false},
+//            content = {
+//                Column(
+//                    horizontalAlignment = Alignment.CenterHorizontally,
+//                    verticalArrangement = Arrangement.Center,
+//                    modifier=Modifier
+//                        .fillMaxWidth()
+//                        .background(MaterialTheme.colorScheme.background)
+//                ) {
+//                    Text("Select Start Time",modifier=Modifier.padding(vertical = 8.dp),fontWeight = FontWeight.Bold, fontSize = 18.sp)
+//                    TimePicker(state = timePickerState)
+//                    Spacer(Modifier.height(16.dp))
+//                    Button(
+//                        onClick = {onBlockTimePicked()},
+//                        colors = ButtonDefaults.buttonColors(
+//                            containerColor = MaterialTheme.colorScheme.onBackground,
+//                        ),
+//                        content = {
+//                            Text(
+//                                text="OK",
+//                                textAlign = TextAlign.Center,
+//                                modifier = Modifier.padding(10.dp),
+//                                fontWeight = FontWeight.Bold,
+//                                fontSize = 15.sp,
+//                                color = MaterialTheme.colorScheme.background,
+//                            )
+//                        }
+//                    )
+//                }
+//            }
+//        )
+//    }
 
     LazyColumn(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         item {
@@ -356,7 +410,7 @@ fun BlockingAppPage(viewModel: BlockingAppViewModel = koinViewModel(), navigateB
 //            Spacer(Modifier.height(10.dp))
             AccordionItem(title = "Use at specific times?") {
                 Column(Modifier.fillMaxWidth()) {
-                    Text("You can use ${appStats?.name} on up to 3 times a day for 1 hour each time. Select the times you want ")
+                    Text("You can use ${appStats?.name} on up to 6 hours a day for 1 hour each time. Select the times you want ")
                     Button(
                         onClick = {
                             showBlockTimeDialog = true

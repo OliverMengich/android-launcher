@@ -32,17 +32,25 @@ fun CalendarItem(title: String,timeFormat: String?="HH:mm", events: List<Event>)
         if (events.isEmpty()){
             Text("No events for this hour", modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp), textAlign = TextAlign.Center)
         }else{
-            Column {
-                events.forEach { ev ->
+            Column(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 10.dp)) {
+                events.forEachIndexed { idx, ev ->
+                    val startTime = longToMilliSeconds(ev.start)
+                        .formatTimeToRequiredFormat(pattern = timeFormat)
+
+                    val endTime = longToMilliSeconds(ev.end)
+                        .formatTimeToRequiredFormat(pattern = timeFormat)
+
                     Text(
-                        text = " - ${
-                            longToMilliSeconds(ev.start)
-                                .formatTimeToRequiredFormat(pattern = timeFormat)
-                        } - ${
-                            longToMilliSeconds(ev.end)
-                                .formatTimeToRequiredFormat(pattern = timeFormat)
-                        } ${ev.title}"
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start= 5.dp,
+                                end = 5.dp,
+                                bottom = if (idx==(events.size-1)) 0.dp else 5.dp
+                            ),
+                        text = "• $startTime - $endTime ${ev.title}"
                     )
+
                 }
             }
 //            LazyColumn {

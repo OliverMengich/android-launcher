@@ -54,7 +54,7 @@ fun UsagePermissionsPage(requestUsagePermission: ()-> Unit,isActive: Boolean,nav
     Box(modifier = Modifier.fillMaxSize().padding(top=50.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                repeat(3) { it->
+                repeat(3) { idx->
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         HorizontalDivider(
                             modifier = Modifier.weight(1f),
@@ -64,7 +64,7 @@ fun UsagePermissionsPage(requestUsagePermission: ()-> Unit,isActive: Boolean,nav
                         Box(
                             modifier = Modifier
                                 .background(
-                                    color=if (it==0) if (isSystemInDarkTheme())Color.White else Color.Black else Color.Transparent,
+                                    color=if (idx==0 || idx==1) if (isSystemInDarkTheme())Color.White else Color.Black else Color.Transparent,
                                     shape = RoundedCornerShape(40.dp)
                                 )
                                 .size(40.dp)
@@ -74,7 +74,7 @@ fun UsagePermissionsPage(requestUsagePermission: ()-> Unit,isActive: Boolean,nav
                                 ),
                             contentAlignment = Alignment.Center
                         ){
-                            if (it==0) {
+                            if (idx==0 || idx==1) {
                                 Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = if (isSystemInDarkTheme()) Color.Black else Color.White)
                             }
                         }
